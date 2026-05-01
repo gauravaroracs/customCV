@@ -1,0 +1,36 @@
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body > * {
+    display: none !important;
+  }
+
+  body > *:has(#cv-preview) {
+    display: block !important;
+  }
+
+  #cv-preview {
+    display: block !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+    page-break-after: avoid;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}

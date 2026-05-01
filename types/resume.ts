@@ -65,3 +65,35 @@ export type RewriteResponse = {
   summaryOfChanges: string[];
   warnings: string[];
 };
+
+export type JobMetadata = {
+  company: string;
+  role: string;
+  location: string;
+};
+
+export type TailorRequest = {
+  masterCV: ResumeData;
+  jobDescription: string;
+};
+
+export type MatchBreakdown = {
+  keywords: number;
+  experience: number;
+  skills: number;
+  overall: number;
+};
+
+export type TailorResponse = {
+  tailoredCV: ResumeData;
+  changes: string[];
+  warnings: string[];
+  matchScore: number;
+  matchBreakdown: MatchBreakdown;
+};
+
+export type RecentApplication = JobMetadata & {
+  timestamp: string;
+  tailoredCV: ResumeData;
+  jdSnapshot: string;
+};

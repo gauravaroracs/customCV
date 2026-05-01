@@ -1,31 +1,34 @@
 "use client";
 
 import { ChangeEvent, useEffect, useRef, useState } from "react";
-import { AiPanel } from "@/components/AiPanel";
+import { MasterCvModal } from "@/components/MasterCvModal";
+import { QuickApplyPanel } from "@/components/QuickApplyPanel";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
+import { generateATSText, getATSFilename } from "@/lib/cvText";
 import { sampleResume } from "@/sampleResume";
 import {
+  JobMetadata,
+  RecentApplication,
   ResumeData,
   ResumeSectionKey,
-  RewriteRequest,
-  RewriteResponse
+  TailorResponse
 } from "@/types/resume";
 
-const STORAGE_KEY = "cvpilot-resume";
+const LEGACY_STORAGE_KEY = "cvpilot-resume";
+const WORKING_CV_STORAGE_KEY = "cvpilot-working-cv";
+const MASTER_CV_STORAGE_KEY = "masterCV";
 const VERSION_STORAGE_KEY = "cvpilot-version";
+const RECENT_APPS_STORAGE_KEY = "recentApps";
+const FONT_SIZE_STORAGE_KEY = "cvFontSize";
 
 const versions = ["Java Backend Heavy", "General Tech", "Germany Targeted"];
 
-const sectionLabels: Record<ResumeSectionKey, string> = {
-  personal: "Personal Information",
-  profile: "Profile",
-  skills: "Skills",
-  languages: "Languages",
-  education: "Education",
-  experience: "Professional Experience",
-  projects: "Projects"
+const emptyMetadata: JobMetadata = {
+  company: "",
+  role: "",
+  location: ""
 };
 
 const defaultOpenSections: Record<ResumeSectionKey, boolean> = {
@@ -82,34 +85,227 @@ async function compressProfilePhoto(file: File) {
   });
 }
 
+function downloadTextFile(content: string, filename: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function toStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/[\n,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeResumeInput(value: unknown): ResumeData {
+  const candidate =
+    value &&
+    typeof value === "object" &&
+    "tailoredCV" in value &&
+    value.tailoredCV &&
+    typeof value.tailoredCV === "object"
+      ? value.tailoredCV
+      : value;
+
+  const source = (candidate && typeof candidate === "object" ? candidate : {}) as Partial<ResumeData>;
+  const personal = (source.personal && typeof source.personal === "object"
+    ? source.personal
+    : {}) as Partial<ResumeData["personal"]>;
+
+  const rawSkills =
+    source.skills && typeof source.skills === "object" && !Array.isArray(source.skills)
+      ? source.skills
+      : {};
+
+  const normalizedSkills = Object.fromEntries(
+    Object.entries(rawSkills).map(([groupName, groupValues]) => [groupName, toStringArray(groupValues)])
+  );
+
+  return {
+    personal: {
+      name: typeof personal.name === "string" ? personal.name : sampleResume.personal.name,
+      email: typeof personal.email === "string" ? personal.email : sampleResume.personal.email,
+      phone: typeof personal.phone === "string" ? personal.phone : sampleResume.personal.phone,
+      location:
+        typeof personal.location === "string"
+          ? personal.location
+          : sampleResume.personal.location,
+      linkedin:
+        typeof personal.linkedin === "string"
+          ? personal.linkedin
+          : sampleResume.personal.linkedin,
+      photoUrl: typeof personal.photoUrl === "string" ? personal.photoUrl : ""
+    },
+    profile: typeof source.profile === "string" ? source.profile : sampleResume.profile,
+    skills:
+      Object.keys(normalizedSkills).length > 0 ? normalizedSkills : { ...sampleResume.skills },
+    languages: Array.isArray(source.languages)
+      ? source.languages.map((item) => ({
+          name:
+            item && typeof item === "object"
+              ? String(
+                  ("language" in item ? item.language : "name" in item ? item.name : "") ?? ""
+                )
+              : "",
+          level:
+            item && typeof item === "object" && "level" in item ? String(item.level ?? "") : ""
+        }))
+      : sampleResume.languages,
+    education: Array.isArray(source.education)
+      ? source.education.map((item) => ({
+          degree:
+            item && typeof item === "object" && "degree" in item ? String(item.degree ?? "") : "",
+          institution:
+            item && typeof item === "object" && "institution" in item
+              ? String(item.institution ?? "")
+              : "",
+          location:
+            item && typeof item === "object" && "location" in item
+              ? String(item.location ?? "")
+              : "",
+          dates:
+            item && typeof item === "object" && "dates" in item ? String(item.dates ?? "") : "",
+          details:
+            item && typeof item === "object" && "details" in item
+              ? toStringArray(item.details)
+              : []
+        }))
+      : sampleResume.education,
+    experience: Array.isArray(source.experience)
+      ? source.experience.map((item) => {
+          const entry = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+          return {
+          role: String((entry.title ?? entry.role ?? "") as string),
+          company: String((entry.company ?? "") as string),
+          location: String((entry.location ?? "") as string),
+          dates: String(
+            (entry.dates ??
+              ((entry.start || entry.end)
+                ? `${String(entry.start ?? "")} – ${String(entry.end ?? "")}`.trim()
+                : "")) as string
+          ),
+          bullets:
+              "bullets" in entry
+              ? toStringArray(entry.bullets)
+              : []
+        };
+      })
+      : sampleResume.experience,
+    projects: Array.isArray(source.projects)
+      ? source.projects.map((item) => ({
+          name:
+            item && typeof item === "object" && "name" in item ? String(item.name ?? "") : "",
+          tech:
+            item && typeof item === "object" && "tech" in item ? String(item.tech ?? "") : "",
+          bullets:
+            item && typeof item === "object" && "bullets" in item
+              ? toStringArray(item.bullets)
+              : []
+        }))
+      : sampleResume.projects
+  };
+}
+
 export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const generateShortcutRef = useRef<(() => void) | null>(null);
+  const copyShortcutRef = useRef<(() => Promise<void>) | null>(null);
+  const downloadPdfRef = useRef<(() => void) | null>(null);
+  const [importTarget, setImportTarget] = useState<"working" | "master">("working");
   const [resume, setResume] = useState<ResumeData>(sampleResume);
+  const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
   const [selectedVersion, setSelectedVersion] = useState(versions[0]);
   const [selectedSection, setSelectedSection] = useState<ResumeSectionKey | null>("profile");
   const [openSections, setOpenSections] =
     useState<Record<ResumeSectionKey, boolean>>(defaultOpenSections);
-  const [instruction, setInstruction] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [suggestion, setSuggestion] = useState<RewriteResponse | null>(null);
+  const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
+  const [result, setResult] = useState<TailorResponse | null>(null);
+  const [activeResultTab, setActiveResultTab] = useState<"preview" | "changes">("preview");
+  const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
+  const [showMasterModal, setShowMasterModal] = useState(false);
+  const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
   const [isLoading, setIsLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [cvFontSize, setCvFontSize] = useState("9.5px");
+  const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedResume = window.localStorage.getItem(STORAGE_KEY);
+    const storedMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY);
+    const storedWorking =
+      window.localStorage.getItem(WORKING_CV_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY);
     const storedVersion = window.localStorage.getItem(VERSION_STORAGE_KEY);
+    const storedRecentApps = window.localStorage.getItem(RECENT_APPS_STORAGE_KEY);
 
-    if (storedResume) {
+    if (storedMaster) {
       try {
-        setResume(JSON.parse(storedResume) as ResumeData);
+        const parsedMaster = normalizeResumeInput(JSON.parse(storedMaster));
+        setMasterCV(parsedMaster);
+
+        let initialResume = parsedMaster;
+        if (storedWorking) {
+          initialResume = normalizeResumeInput(JSON.parse(storedWorking));
+        }
+        
+        const savedPhoto = window.localStorage.getItem('cvPhoto');
+        if (savedPhoto) {
+          initialResume.personal.photoUrl = savedPhoto;
+        }
+        setResume(initialResume);
       } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(MASTER_CV_STORAGE_KEY);
+        setMasterModalMode("setup");
+        setShowMasterModal(true);
       }
+    } else {
+      if (storedWorking) {
+        try {
+          const initialResume = normalizeResumeInput(JSON.parse(storedWorking));
+          const savedPhoto = window.localStorage.getItem('cvPhoto');
+          if (savedPhoto) {
+            initialResume.personal.photoUrl = savedPhoto;
+          }
+          setResume(initialResume);
+        } catch {
+          window.localStorage.removeItem(WORKING_CV_STORAGE_KEY);
+          window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+        }
+      }
+
+      setMasterModalMode("setup");
+      setShowMasterModal(true);
     }
 
     if (storedVersion && versions.includes(storedVersion)) {
       setSelectedVersion(storedVersion);
+    }
+
+    const storedFontSize = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    if (storedFontSize) {
+      setCvFontSize(storedFontSize);
+    }
+
+    if (storedRecentApps) {
+      try {
+        setRecentApplications(JSON.parse(storedRecentApps) as RecentApplication[]);
+      } catch {
+        window.localStorage.removeItem(RECENT_APPS_STORAGE_KEY);
+      }
     }
 
     setIsHydrated(true);
@@ -121,9 +317,9 @@ export default function HomePage() {
     }
 
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(resume));
+      window.localStorage.setItem(WORKING_CV_STORAGE_KEY, JSON.stringify(resume));
     } catch {
-      setError("The resume could not be fully saved in browser storage. Try a smaller photo.");
+      setError("The working CV could not be saved in browser storage. Try a smaller photo.");
     }
   }, [isHydrated, resume]);
 
@@ -135,25 +331,58 @@ export default function HomePage() {
     window.localStorage.setItem(VERSION_STORAGE_KEY, selectedVersion);
   }, [isHydrated, selectedVersion]);
 
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, cvFontSize);
+  }, [cvFontSize, isHydrated]);
+
+  useEffect(() => {
+    const previewElement = document.getElementById("cv-preview");
+    if (!previewElement) {
+      return;
+    }
+
+    previewElement.style.setProperty("--cv-font-size", cvFontSize);
+  }, [cvFontSize, resume]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(RECENT_APPS_STORAGE_KEY, JSON.stringify(recentApplications));
+  }, [isHydrated, recentApplications]);
+
+  const persistMasterCV = (nextMasterCV: ResumeData) => {
+    setMasterCV(nextMasterCV);
+    setResume(nextMasterCV);
+    window.localStorage.setItem(MASTER_CV_STORAGE_KEY, JSON.stringify(nextMasterCV));
+    window.localStorage.setItem(WORKING_CV_STORAGE_KEY, JSON.stringify(nextMasterCV));
+    setResult(null);
+    setError(null);
+    setMasterModalMode("update");
+    setShowMasterModal(false);
+  };
+
   const handleResumeChange = (nextResume: ResumeData) => {
     setResume(nextResume);
-    setSuggestion(null);
+    setResult(null);
     setError(null);
   };
 
   const handleExport = () => {
-    const blob = new Blob([JSON.stringify(resume, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "cvpilot-resume.json";
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(
+      JSON.stringify(resume, null, 2),
+      "cvpilot-resume.json",
+      "application/json"
+    );
   };
 
-  const handleImportClick = () => {
+  const handleImportClick = (target: "working" | "master" = "working") => {
+    setImportTarget(target);
     fileInputRef.current?.click();
   };
 
@@ -165,10 +394,15 @@ export default function HomePage() {
 
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text) as ResumeData;
-      setResume(parsed);
-      setSuggestion(null);
-      setError(null);
+      const parsed = normalizeResumeInput(JSON.parse(text));
+
+      if (importTarget === "master") {
+        persistMasterCV(parsed);
+      } else {
+        setResume(parsed);
+        setResult(null);
+        setError(null);
+      }
     } catch {
       setError("The imported file is not valid resume JSON.");
     } finally {
@@ -176,18 +410,56 @@ export default function HomePage() {
     }
   };
 
-  const handleReset = () => {
-    setResume(sampleResume);
-    setSuggestion(null);
-    setInstruction("");
-    setJobDescription("");
+  const handleResetToMaster = () => {
+    if (!masterCV) {
+      setResume(sampleResume);
+      return;
+    }
+
+    setResume(masterCV);
+    setResult(null);
     setError(null);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleResume));
+  };
+
+  const handleUpdateMaster = () => {
+    setMasterModalMode("update");
+    setShowMasterModal(true);
+  };
+
+  const handleExtractMetadata = async (pastedText: string) => {
+    try {
+      const response = await fetch("/api/extract-job-metadata", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text: pastedText.slice(0, 500) })
+      });
+
+      const parsed = (await response.json()) as JobMetadata & { error?: string };
+      if (!response.ok) {
+        throw new Error(parsed.error ?? "Failed to extract job metadata.");
+      }
+
+      setJobMetadata({
+        company: parsed.company ?? "",
+        role: parsed.role ?? "",
+        location: parsed.location ?? ""
+      });
+    } catch {
+      // Keep the workflow moving even if metadata extraction fails.
+    }
   };
 
   const handleGenerate = async () => {
-    if (!instruction.trim()) {
-      setError("Add an instruction before generating a suggestion.");
+    if (!jobDescription.trim()) {
+      setError("Paste a job description before tailoring the CV.");
+      return;
+    }
+
+    if (!masterCV) {
+      setError("Set a master CV before generating a tailored version.");
+      setShowMasterModal(true);
       return;
     }
 
@@ -195,56 +467,128 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const payload: RewriteRequest = {
-        fullResume: resume,
-        selectedSectionKey: selectedSection,
-        selectedSectionContent: selectedSection ? resume[selectedSection] : null,
-        instruction: instruction.trim(),
-        jobDescription: jobDescription.trim()
-      };
-
-      const response = await fetch("/api/rewrite-section", {
+      const response = await fetch("/api/tailor-cv", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          masterCV,
+          jobDescription: jobDescription.trim()
+        })
       });
 
-      const result = (await response.json()) as RewriteResponse & { error?: string };
-
+      const parsed = (await response.json()) as TailorResponse & { error?: string };
       if (!response.ok) {
-        throw new Error(result.error ?? "The AI request failed.");
+        throw new Error(parsed.error ?? "The AI request failed.");
       }
 
-      setSuggestion(result);
+      const tailored = parsed.tailoredCV;
+      tailored.personal.photoUrl = resume.personal.photoUrl;
+
+      setResume(tailored);
+      setResult(parsed);
+      setActiveResultTab("changes");
+
+      setRecentApplications((current) => {
+        const nextItem: RecentApplication = {
+          company: jobMetadata.company,
+          role: jobMetadata.role,
+          location: jobMetadata.location,
+          timestamp: new Date().toISOString(),
+          tailoredCV: parsed.tailoredCV,
+          jdSnapshot: jobDescription
+        };
+
+        return [nextItem, ...current].slice(0, 5);
+      });
     } catch (requestError) {
-      setSuggestion(null);
+      setResult(null);
       setError(
-        requestError instanceof Error
-          ? requestError.message
-          : "The AI request failed."
+        requestError instanceof Error ? requestError.message : "The AI request failed."
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAccept = () => {
-    if (!suggestion) {
+  const handleSelectRecent = (timestamp: string) => {
+    const selectedApplication = recentApplications.find((item) => item.timestamp === timestamp);
+    if (!selectedApplication) {
       return;
     }
 
-    setResume(suggestion.updatedResume);
-    setSuggestion(null);
-    setInstruction("");
+    setResume(selectedApplication.tailoredCV);
+    setJobDescription(selectedApplication.jdSnapshot);
+    setJobMetadata({
+      company: selectedApplication.company,
+      role: selectedApplication.role,
+      location: selectedApplication.location
+    });
+    setResult(null);
+    setActiveResultTab("preview");
     setError(null);
   };
 
-  const handleReject = () => {
-    setSuggestion(null);
-    setError(null);
+  const handleDownloadATS = () => {
+    const text = generateATSText(resume);
+    downloadTextFile(text, getATSFilename(resume, jobMetadata), "text/plain;charset=utf-8");
   };
+
+  const downloadPDF = () => {
+    const originalTitle = document.title;
+    const name = resume.personal.name.replace(/\s+/g, "");
+    document.title = `${name}_CV`;
+    window.print();
+    window.setTimeout(() => {
+      document.title = originalTitle;
+    }, 0);
+  };
+
+  const handleCopyPlainText = async () => {
+    const text = generateATSText(resume);
+    await navigator.clipboard.writeText(text);
+  };
+
+  generateShortcutRef.current = () => {
+    void handleGenerate();
+  };
+  copyShortcutRef.current = handleCopyPlainText;
+  downloadPdfRef.current = downloadPDF;
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const hasModifier = event.metaKey || event.ctrlKey;
+
+      if (event.key === "Escape") {
+        setShowMasterModal(false);
+      }
+
+      if (hasModifier && event.key === "Enter") {
+        event.preventDefault();
+        if (!isLoading) {
+          generateShortcutRef.current?.();
+        }
+      }
+
+      if (hasModifier && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        if (!isLoading) {
+          void downloadPdfRef.current?.();
+        }
+      }
+
+      if (hasModifier && event.shiftKey && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        if (!isLoading) {
+          void copyShortcutRef.current?.();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isLoading]);
 
   const handlePhotoUpload = async (file: File) => {
     try {
@@ -256,7 +600,8 @@ export default function HomePage() {
           photoUrl
         }
       }));
-      setSuggestion(null);
+      window.localStorage.setItem('cvPhoto', photoUrl);
+      setResult(null);
       setError(null);
     } catch (uploadError) {
       setError(
@@ -275,7 +620,8 @@ export default function HomePage() {
         photoUrl: ""
       }
     }));
-    setSuggestion(null);
+    window.localStorage.removeItem('cvPhoto');
+    setResult(null);
     setError(null);
   };
 
@@ -284,11 +630,28 @@ export default function HomePage() {
       <Toolbar
         selectedVersion={selectedVersion}
         versions={versions}
+        disabled={isLoading}
+        masterCvName={masterCV?.personal.name || resume.personal.name || "Not set"}
+        recentApplications={recentApplications}
+        cvFontSize={cvFontSize}
         onVersionChange={setSelectedVersion}
-        onImportClick={handleImportClick}
+        onFontSizeChange={setCvFontSize}
+        onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
-        onPrintClick={() => window.print()}
-        onResetClick={handleReset}
+        onPrintClick={downloadPDF}
+        onDownloadATS={handleDownloadATS}
+        onCopyPlainText={handleCopyPlainText}
+        onResetClick={handleResetToMaster}
+        onUpdateMaster={handleUpdateMaster}
+        onSelectRecent={handleSelectRecent}
+      />
+
+      <MasterCvModal
+        isOpen={showMasterModal}
+        mode={masterModalMode}
+        onImportClick={() => handleImportClick("master")}
+        onUseCurrent={() => persistMasterCV(resume)}
+        onClose={() => setShowMasterModal(false)}
       />
 
       <input
@@ -305,9 +668,10 @@ export default function HomePage() {
             resume={resume}
             selectedSection={selectedSection}
             openSections={openSections}
+            disabled={isLoading}
             onSelectSection={(key) => {
               setSelectedSection(key);
-              setSuggestion(null);
+              setResult(null);
               setError(null);
             }}
             onToggleSection={(key) =>
@@ -320,24 +684,80 @@ export default function HomePage() {
         </div>
 
         <div className="overflow-x-auto">
-          <ResumePreview resume={resume} />
+          <div className="no-print mb-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
+            Save as PDF → Margins: None → Background graphics: ON → Save
+          </div>
+          <ResumePreview
+            resume={resume}
+            isLoading={isLoading}
+            cvFontSize={cvFontSize}
+            onOverflowChange={setPreviewOverflowAmount}
+          />
+          <div className="no-print mt-3 flex justify-center">
+            <div
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                previewOverflowAmount > 0
+                  ? "bg-rose-100 text-rose-800"
+                  : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {previewOverflowAmount > 0
+                ? `⚠ Overflowing by ${Math.round(previewOverflowAmount)}px — reduce font size or content`
+                : "Fits within exact A4 height"}
+            </div>
+          </div>
+          <div className="no-print mt-4 flex flex-wrap justify-center gap-3">
+            <div className="group relative">
+              <button
+                type="button"
+                onClick={downloadPDF}
+                disabled={isLoading}
+                className="rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                ⬇ Download PDF
+              </button>
+              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
+                When the print dialog opens: set Destination to &quot;Save as PDF&quot;, Margins to &quot;None&quot;, and check &quot;Background graphics&quot;
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadATS}
+              disabled={isLoading}
+              className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              ⬇ Download ATS .txt
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopyPlainText()}
+              disabled={isLoading}
+              className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              ⧉ Copy plain text
+            </button>
+          </div>
         </div>
 
-        <AiPanel
-          selectedSection={selectedSection}
-          selectedSectionLabel={
-            selectedSection ? sectionLabels[selectedSection] : "No section selected"
-          }
-          instruction={instruction}
+        <QuickApplyPanel
           jobDescription={jobDescription}
-          suggestion={suggestion}
-          isLoading={isLoading}
+          metadata={jobMetadata}
+          result={result}
           error={error}
-          onInstructionChange={setInstruction}
+          isLoading={isLoading}
+          disabled={isLoading}
+          activeTab={activeResultTab}
           onJobDescriptionChange={setJobDescription}
-          onGenerate={handleGenerate}
-          onAccept={handleAccept}
-          onReject={handleReject}
+          onJobDescriptionPaste={(value) => {
+            void handleExtractMetadata(value);
+          }}
+          onMetadataChange={(key, value) =>
+            setJobMetadata((current) => ({ ...current, [key]: value }))
+          }
+          onGenerate={() => {
+            void handleGenerate();
+          }}
+          onTabChange={setActiveResultTab}
         />
       </div>
     </div>

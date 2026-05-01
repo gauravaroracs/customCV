@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   Briefcase,
   FolderKanban,
@@ -19,6 +20,9 @@ import { ResumeData } from "@/types/resume";
 
 type ResumePreviewProps = {
   resume: ResumeData;
+  isLoading?: boolean;
+  cvFontSize: string;
+  onOverflowChange?: (overflowAmount: number) => void;
 };
 
 type HeadingProps = {
@@ -28,12 +32,31 @@ type HeadingProps = {
 
 function SectionHeading({ title, icon: Icon }: HeadingProps) {
   return (
-    <div className="mb-3">
-      <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.26em] text-slate-800">
-        <Icon size={14} className="text-blue-600" />
+    <div style={{ marginBottom: "12px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          fontSize: "var(--cv-font-size-h, 9px)",
+          fontWeight: 600,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "#111111"
+        }}
+      >
+        <Icon size={11} color="#1a6b9e" />
         <span>{title}</span>
       </div>
-      <div className="mt-2 h-[2px] w-full rounded-full bg-gradient-to-r from-blue-600 via-blue-400 to-transparent" />
+      <div
+        style={{
+          marginTop: "6px",
+          height: "2px",
+          width: "100%",
+          borderRadius: "999px",
+          background: "linear-gradient(90deg, #1a6b9e, #6fa9c8, transparent)"
+        }}
+      />
     </div>
   );
 }
@@ -46,9 +69,19 @@ function ContactItem({
   text: string;
 }) {
   return (
-    <div className="flex items-start gap-2 text-[12px] leading-5 text-slate-600">
-      <Icon size={14} className="mt-[2px] shrink-0 text-blue-600" />
-      <span className="break-all">{text}</span>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "8px",
+        fontSize: "var(--cv-font-size-sm, 9px)",
+        fontWeight: 400,
+        lineHeight: 1.6,
+        color: "#1a1a1a"
+      }}
+    >
+      <Icon size={11} color="#1a6b9e" style={{ marginTop: "1px", flexShrink: 0 }} />
+      <span style={{ wordBreak: "break-all" }}>{text}</span>
     </div>
   );
 }
@@ -59,7 +92,7 @@ function renderInlineText(text: string) {
   return parts.map((part, index) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       return (
-        <strong key={`${part}-${index}`} className="font-extrabold text-slate-900">
+        <strong key={`${part}-${index}`} style={{ fontWeight: 600, color: "#111111" }}>
           {part.slice(2, -2)}
         </strong>
       );
@@ -69,7 +102,30 @@ function renderInlineText(text: string) {
   });
 }
 
-export function ResumePreview({ resume }: ResumePreviewProps) {
+function getLanguageName(item: ResumeData["languages"][number] & { language?: string }) {
+  return item.language || item.name || "";
+}
+
+function getExperienceTitle(item: ResumeData["experience"][number] & { title?: string }) {
+  return item.title || item.role || "";
+}
+
+function getExperienceDates(
+  item: ResumeData["experience"][number] & { start?: string; end?: string }
+) {
+  if (item.start || item.end) {
+    return `${item.start ?? ""} – ${item.end ?? ""}`.trim();
+  }
+
+  return item.dates;
+}
+
+export function ResumePreview({
+  resume,
+  isLoading = false,
+  cvFontSize,
+  onOverflowChange
+}: ResumePreviewProps) {
   const pageRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -84,17 +140,20 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
         return;
       }
 
-      const naturalHeight = content.scrollHeight;
-      const availableHeight = page.clientHeight;
-      const nextOverflowing = naturalHeight > availableHeight;
-      const nextOverflowAmount = Math.max(0, naturalHeight - availableHeight);
-
-      setIsOverflowing((current) =>
-        current === nextOverflowing ? current : nextOverflowing
+      const contentHeight = content.scrollHeight;
+      const previewHeight = page.scrollHeight;
+      const availableHeight = 1123;
+      const nextOverflowing = contentHeight > availableHeight || previewHeight > availableHeight;
+      const nextOverflowAmount = Math.max(
+        0,
+        Math.max(contentHeight, previewHeight) - availableHeight
       );
+
+      setIsOverflowing((current) => (current === nextOverflowing ? current : nextOverflowing));
       setOverflowAmount((current) =>
         Math.abs(current - nextOverflowAmount) < 1 ? current : nextOverflowAmount
       );
+      onOverflowChange?.(nextOverflowAmount);
     };
 
     measureOverflow();
@@ -117,7 +176,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
       observer.disconnect();
       window.removeEventListener("resize", measureOverflow);
     };
-  }, [resume]);
+  }, [cvFontSize, onOverflowChange, resume]);
 
   const initials = resume.personal.name
     .split(" ")
@@ -132,9 +191,7 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
         <div className="font-medium text-slate-700">A4 preview boundary: 794 × 1123 px</div>
         <div
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            isOverflowing
-              ? "bg-rose-100 text-rose-800"
-              : "bg-emerald-100 text-emerald-800"
+            isOverflowing ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
           }`}
         >
           {isOverflowing
@@ -146,143 +203,230 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
       <div className="no-print mb-4 h-px w-full max-w-[794px] border-t border-dashed border-slate-400/70" />
 
       <div
+        id="cv-preview"
         ref={pageRef}
         className="resume-page print-area relative overflow-hidden rounded-[24px] border border-slate-300/80 bg-white shadow-page"
+        style={
+          {
+            width: "794px",
+            minHeight: "1123px",
+            overflow: "hidden",
+            ["--cv-font-size" as string]: cvFontSize,
+            ["--cv-font-size-sm" as string]: "calc(var(--cv-font-size) - 0.5px)",
+            ["--cv-font-size-lg" as string]: "calc(var(--cv-font-size) + 0.5px)",
+            ["--cv-font-size-xl" as string]: "calc(var(--cv-font-size) + 2px)",
+            ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)"
+          } as CSSProperties
+        }
       >
+        {isLoading ? (
+          <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden bg-white/70">
+            <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_infinite] bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+          </div>
+        ) : null}
         <div className="no-print absolute inset-x-0 bottom-0 z-10 border-t-2 border-dashed border-rose-400/90" />
         <div className="no-print absolute bottom-2 right-4 z-10 rounded-full bg-white/95 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-rose-700 shadow-sm">
           A4 ends here
         </div>
+
         <div className="min-h-full">
-          <div ref={contentRef} className="grid min-h-full grid-cols-[38%_62%]">
-            <aside className="border-r border-slate-200 bg-[#fcfbf7] px-9 py-10">
-              <div className="mb-8 flex flex-col items-start">
+          <div ref={contentRef} className="min-h-full" style={{ display: "flex", alignItems: "stretch", minHeight: "1091px" }}>
+            <aside style={{ borderRight: "1px solid #e2e8f0", background: "#fcfbf7", padding: "12px", display: "flex", flexDirection: "column", minHeight: "100%", width: "38%" }}>
+              <div style={{ marginBottom: "12px", textAlign: "center" }}>
                 {resume.personal.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={resume.personal.photoUrl}
-                    alt={resume.personal.name}
-                    className="mb-5 h-[120px] w-[120px] rounded-full border border-slate-200 object-cover shadow-sm"
-                  />
+                  <div
+                    style={{
+                      width: "90px",
+                      height: "90px",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      margin: "0 auto 10px auto",
+                      display: "block",
+                      border: "1px solid #e2e8f0"
+                    }}
+                  >
+                    <img
+                      src={resume.personal.photoUrl}
+                      alt={resume.personal.name}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        objectPosition: "center top"
+                      }}
+                    />
+                  </div>
                 ) : (
-                  <div className="mb-5 flex h-[120px] w-[120px] items-center justify-center rounded-full border border-dashed border-slate-300 bg-slate-100 text-2xl font-semibold text-slate-500">
+                  <div
+                    style={{
+                      width: "90px",
+                      height: "90px",
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      margin: "0 auto 10px auto",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      border: "1px dashed #cbd5e1",
+                      background: "#f1f5f9",
+                      color: "#64748b",
+                      fontSize: "var(--cv-font-size-xl, 11.5px)",
+                      fontWeight: 600
+                    }}
+                  >
                     {initials}
                   </div>
                 )}
 
-                <h1 className="text-[30px] font-extrabold leading-[1.05] tracking-[-0.03em] text-slate-900">
+                <span
+                  style={{
+                    display: "block",
+                    clear: "both",
+                    textAlign: "center",
+                    marginTop: "8px",
+                    fontSize: "var(--cv-font-size-xl, 11.5px)",
+                    fontWeight: 600,
+                    color: "#111111",
+                    lineHeight: 1.1
+                  }}
+                >
                   {resume.personal.name}
-                </h1>
+                </span>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    height: "2px",
+                    width: "100%",
+                    borderRadius: "999px",
+                    background: "linear-gradient(90deg, #1a6b9e, #6fa9c8, transparent)"
+                  }}
+                />
               </div>
 
-              <div className="space-y-6">
-                <section>
-                  <SectionHeading title="Contact" icon={UserRound} />
-                  <div className="space-y-2">
-                    <ContactItem icon={Mail} text={resume.personal.email.replace(/\*\*/g, "")} />
-                    <ContactItem icon={Phone} text={resume.personal.phone.replace(/\*\*/g, "")} />
-                    <ContactItem
-                      icon={LocateFixed}
-                      text={resume.personal.location.replace(/\*\*/g, "")}
-                    />
-                    <ContactItem
-                      icon={Linkedin}
-                      text={resume.personal.linkedin.replace(/\*\*/g, "")}
-                    />
-                  </div>
-                </section>
+              <section style={{ marginBottom: "14px" }}>
+                <SectionHeading title="Contact" icon={UserRound} />
+                <div className="space-y-2">
+                  <ContactItem icon={Mail} text={resume.personal.email.replace(/\*\*/g, "")} />
+                  <ContactItem icon={Phone} text={resume.personal.phone.replace(/\*\*/g, "")} />
+                  <ContactItem
+                    icon={LocateFixed}
+                    text={resume.personal.location.replace(/\*\*/g, "")}
+                  />
+                  <ContactItem
+                    icon={Linkedin}
+                    text={resume.personal.linkedin.replace(/\*\*/g, "")}
+                  />
+                </div>
+              </section>
 
-                <section>
-                  <SectionHeading title="Skills" icon={Wrench} />
-                  <div className="space-y-3">
-                    {Object.entries(resume.skills).map(([group, values]) => (
-                      <div key={group}>
-                        <div className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-slate-800">
-                          {group.replace(/\*\*/g, "")}
-                        </div>
-                        <p className="mt-1 text-[11.8px] leading-5 text-slate-600">
-                          {renderInlineText(values.join(" • "))}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section>
-                  <SectionHeading title="Languages" icon={Languages} />
-                  <div className="space-y-2">
-                    {resume.languages.map((item) => (
+              <section style={{ marginBottom: "14px" }}>
+                <SectionHeading title="Skills" icon={Wrench} />
+                <div className="space-y-2.5">
+                  {Object.entries(resume.skills).map(([group, values]) => (
+                    <div key={group}>
                       <div
-                        key={`${item.name}-${item.level}`}
-                        className="flex items-center justify-between gap-4 text-[12.5px]"
+                        style={{
+                          fontSize: "var(--cv-font-size-sm, 9px)",
+                          fontWeight: 600,
+                          letterSpacing: "0.08em",
+                          textTransform: "uppercase",
+                          color: "#111111"
+                        }}
                       >
-                        <span className="font-medium text-slate-800">
-                          {renderInlineText(item.name)}
-                        </span>
-                        <span className="text-slate-500">{renderInlineText(item.level)}</span>
+                        {group.replace(/\*\*/g, "")}
                       </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
+                      <p
+                        style={{
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: 400,
+                          lineHeight: 1.6,
+                          color: "#1a1a1a"
+                        }}
+                      >
+                        {renderInlineText(values.join(" • "))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section style={{ marginBottom: "14px" }}>
+                <SectionHeading title="Languages" icon={Languages} />
+                <div className="space-y-2">
+                  {resume.languages.map((lang) => (
+                    <div
+                      key={`${getLanguageName(lang)}-${lang.level}`}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "12px",
+                        fontSize: "var(--cv-font-size-sm, 9px)",
+                        lineHeight: 1.6
+                      }}
+                    >
+                      <span style={{ minWidth: "60px", color: "#1a1a1a" }}>
+                        {getLanguageName(lang)}
+                      </span>
+                      <span style={{ color: "#1a1a1a" }}>{lang.level}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <div style={{ flex: 1 }} />
             </aside>
 
-            <main className="px-10 py-10">
-              <section className="mb-6">
+            <main style={{ padding: "12px", width: "62%" }}>
+              <section style={{ marginBottom: "14px" }}>
                 <SectionHeading title="Profile" icon={Star} />
-                <p className="text-[13.2px] leading-6 text-slate-700">
+                <p
+                  style={{
+                    fontSize: "var(--cv-font-size, 9.5px)",
+                    fontWeight: 400,
+                    lineHeight: 1.6,
+                    color: "#1a1a1a"
+                  }}
+                >
                   {renderInlineText(resume.profile)}
                 </p>
               </section>
 
-              <section className="mb-6">
+              <section style={{ marginBottom: "14px" }}>
                 <SectionHeading title="Professional Experience" icon={Briefcase} />
-                <div className="space-y-5">
-                  {resume.experience.map((item, index) => (
-                    <article key={`${item.company}-${index}`}>
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <div className="text-[13.6px] font-extrabold text-slate-900">
-                            {renderInlineText(item.role)}
-                          </div>
-                          <div className="text-[12.5px] font-semibold text-slate-700">
-                            {renderInlineText(item.company)} · {renderInlineText(item.location)}
-                          </div>
-                        </div>
-                        <div className="shrink-0 text-[11.2px] font-semibold uppercase tracking-[0.1em] text-blue-600">
-                          {item.dates.replace(/\*\*/g, "")}
-                        </div>
+                <div className="space-y-[14px]">
+                  {resume.experience.map((exp, index) => (
+                    <article key={`${exp.company}-${index}`} style={{ marginBottom: "14px" }}>
+                      <div style={{ fontWeight: 600, fontSize: "var(--cv-font-size-lg, 10px)", color: "#111111", marginBottom: "1px" }}>
+                        {getExperienceTitle(exp)}
                       </div>
-                      <ul className="mt-2 list-disc space-y-1 pl-4 text-[12.1px] leading-5 text-slate-700 marker:text-blue-600">
-                        {item.bullets.map((bullet, bulletIndex) => (
-                          <li key={`${item.company}-bullet-${bulletIndex}`}>
-                            {renderInlineText(bullet)}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section className="mb-6">
-                <SectionHeading title="Projects" icon={FolderKanban} />
-                <div className="space-y-4">
-                  {resume.projects.map((project, index) => (
-                    <article key={`${project.name}-${index}`}>
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-[13.6px] font-extrabold text-slate-900">
-                            {renderInlineText(project.name)}
-                          </div>
-                          <div className="text-[12px] font-medium text-slate-600">
-                            {renderInlineText(project.tech)}
-                          </div>
+                        <div
+                          style={{
+                            fontSize: "var(--cv-font-size, 9.5px)",
+                            fontWeight: 400,
+                            fontStyle: "italic",
+                            color: "#1a6b9e"
+                          }}
+                        >
+                          {renderInlineText(exp.company)} ·{" "}
+                          <span style={{ color: "#555555" }}>{renderInlineText(exp.location)}</span>
+                        </div>
+                        <div style={{ fontSize: "var(--cv-font-size-sm, 9px)", color: "#1a6b9e" }}>
+                          {getExperienceDates(exp).replace(/\*\*/g, "")}
                         </div>
                       </div>
-                      <ul className="mt-2 list-disc space-y-1 pl-4 text-[12.1px] leading-5 text-slate-700 marker:text-blue-600">
-                        {project.bullets.map((bullet, bulletIndex) => (
-                          <li key={`${project.name}-bullet-${bulletIndex}`}>
+                      <ul
+                        style={{
+                          listStyle: "disc",
+                          paddingLeft: "14px",
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: 400,
+                          lineHeight: 1.55,
+                          color: "#1a1a1a"
+                        }}
+                      >
+                        {exp.bullets.map((bullet, bulletIndex) => (
+                          <li key={`${exp.company}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
                             {renderInlineText(bullet)}
                           </li>
                         ))}
@@ -292,28 +436,96 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
                 </div>
               </section>
 
-              <section>
+              <section style={{ marginBottom: "14px" }}>
+                <SectionHeading title="Projects" icon={FolderKanban} />
+                <div className="space-y-[14px]">
+                  {resume.projects.map((project, index) => (
+                    <article key={`${project.name}-${index}`} style={{ marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "var(--cv-font-size-lg, 10px)",
+                          color: "#111111"
+                        }}
+                      >
+                        {renderInlineText(project.name)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: 400,
+                          fontStyle: "italic",
+                          color: "#1a6b9e"
+                        }}
+                      >
+                        {renderInlineText(project.tech)}
+                      </div>
+                      <ul
+                        style={{
+                          listStyle: "disc",
+                          paddingLeft: "14px",
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: 400,
+                          lineHeight: 1.55,
+                          color: "#1a1a1a"
+                        }}
+                      >
+                        {project.bullets.map((bullet, bulletIndex) => (
+                          <li key={`${project.name}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
+                            {renderInlineText(bullet)}
+                          </li>
+                        ))}
+                      </ul>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section style={{ marginBottom: "14px" }}>
                 <SectionHeading title="Education" icon={GraduationCap} />
-                <div className="space-y-4">
+                <div className="space-y-[12px]">
                   {resume.education.map((item, index) => (
                     <article key={`${item.institution}-${index}`}>
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-[13.6px] font-extrabold text-slate-900">
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "var(--cv-font-size-lg, 10px)",
+                              color: "#111111"
+                            }}
+                          >
                             {renderInlineText(item.degree)}
                           </div>
-                          <div className="text-[12.5px] font-semibold text-slate-700">
-                            {renderInlineText(item.institution)} · {renderInlineText(item.location)}
+                          <div
+                            style={{
+                              fontSize: "var(--cv-font-size, 9.5px)",
+                              fontWeight: 400,
+                              fontStyle: "italic",
+                              color: "#2a6496"
+                            }}
+                          >
+                            {renderInlineText(item.institution)} ·{" "}
+                            <span style={{ color: "#555555" }}>{renderInlineText(item.location)}</span>
                           </div>
                         </div>
-                        <div className="shrink-0 text-[11.2px] font-semibold uppercase tracking-[0.1em] text-blue-600">
+                        <div style={{ fontSize: "var(--cv-font-size-sm, 9px)", color: "#1a6b9e" }}>
                           {item.dates.replace(/\*\*/g, "")}
                         </div>
                       </div>
                       {item.details.length > 0 ? (
-                        <ul className="mt-2 list-disc space-y-1 pl-4 text-[12.1px] leading-5 text-slate-700 marker:text-blue-600">
+                        <ul
+                          style={{
+                            listStyle: "disc",
+                            paddingLeft: "14px",
+                            fontSize: "var(--cv-font-size, 9.5px)",
+                            fontWeight: 400,
+                            lineHeight: 1.55,
+                            color: "#1a1a1a"
+                          }}
+                        >
                           {item.details.map((detail, detailIndex) => (
-                            <li key={`${item.institution}-detail-${detailIndex}`}>
+                            <li key={`${item.institution}-detail-${detailIndex}`} style={{ margin: "3px 0" }}>
                               {renderInlineText(detail)}
                             </li>
                           ))}
@@ -326,6 +538,8 @@ export function ResumePreview({ resume }: ResumePreviewProps) {
             </main>
           </div>
         </div>
+
+        <div className="cv-page-end-marker" />
       </div>
     </div>
   );

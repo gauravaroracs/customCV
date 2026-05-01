@@ -7,6 +7,7 @@ type ResumeEditorProps = {
   resume: ResumeData;
   selectedSection: ResumeSectionKey | null;
   openSections: Record<ResumeSectionKey, boolean>;
+  disabled?: boolean;
   onSelectSection: (key: ResumeSectionKey) => void;
   onToggleSection: (key: ResumeSectionKey) => void;
   onResumeChange: (resume: ResumeData) => void;
@@ -30,6 +31,7 @@ export function ResumeEditor({
   resume,
   selectedSection,
   openSections,
+  disabled = false,
   onSelectSection,
   onToggleSection,
   onResumeChange,
@@ -47,6 +49,7 @@ export function ResumeEditor({
         description="Identity, contact details, and profile photo."
         isSelected={selectedSection === "personal"}
         isOpen={openSections.personal}
+        disabled={disabled}
         onSelect={() => onSelectSection("personal")}
         onToggle={() => onToggleSection("personal")}
       >
@@ -71,6 +74,7 @@ export function ResumeEditor({
                 <input
                   type="file"
                   accept="image/*"
+                  disabled={disabled}
                   onChange={(event) => {
                     const file = event.target.files?.[0];
                     if (file) {
@@ -84,7 +88,8 @@ export function ResumeEditor({
               <button
                 type="button"
                 onClick={onPhotoRemove}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                disabled={disabled}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Remove photo
               </button>
@@ -108,6 +113,7 @@ export function ResumeEditor({
               </span>
               <input
                 value={resume.personal[key]}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume("personal", {
                     ...resume.personal,
@@ -126,11 +132,13 @@ export function ResumeEditor({
         description="Your top-level positioning statement."
         isSelected={selectedSection === "profile"}
         isOpen={openSections.profile}
+        disabled={disabled}
         onSelect={() => onSelectSection("profile")}
         onToggle={() => onToggleSection("profile")}
       >
         <textarea
           value={resume.profile}
+          disabled={disabled}
           onChange={(event) => updateResume("profile", event.target.value)}
           rows={6}
           className={fieldClassName(selectedSection === "profile")}
@@ -142,6 +150,7 @@ export function ResumeEditor({
         description="Grouped keywords and capability clusters."
         isSelected={selectedSection === "skills"}
         isOpen={openSections.skills}
+        disabled={disabled}
         onSelect={() => onSelectSection("skills")}
         onToggle={() => onToggleSection("skills")}
       >
@@ -155,6 +164,7 @@ export function ResumeEditor({
               />
               <textarea
                 value={values.join(", ")}
+                disabled={disabled}
                 onChange={(event) => {
                   const updatedSkills = { ...resume.skills };
                   updatedSkills[groupName] = event.target.value
@@ -176,6 +186,7 @@ export function ResumeEditor({
         description="Language proficiency in a compact list."
         isSelected={selectedSection === "languages"}
         isOpen={openSections.languages}
+        disabled={disabled}
         onSelect={() => onSelectSection("languages")}
         onToggle={() => onToggleSection("languages")}
       >
@@ -184,6 +195,7 @@ export function ResumeEditor({
             <div key={`${language.name}-${index}`} className="grid grid-cols-2 gap-3">
               <input
                 value={language.name}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "languages",
@@ -197,6 +209,7 @@ export function ResumeEditor({
               />
               <input
                 value={language.level}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "languages",
@@ -218,6 +231,7 @@ export function ResumeEditor({
         description="Degrees, dates, locations, and supporting details."
         isSelected={selectedSection === "education"}
         isOpen={openSections.education}
+        disabled={disabled}
         onSelect={() => onSelectSection("education")}
         onToggle={() => onToggleSection("education")}
       >
@@ -226,6 +240,7 @@ export function ResumeEditor({
             <div key={`${item.institution}-${index}`} className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
               <input
                 value={item.degree}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "education",
@@ -240,6 +255,7 @@ export function ResumeEditor({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={item.institution}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "education",
@@ -253,6 +269,7 @@ export function ResumeEditor({
                 />
                 <input
                   value={item.location}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "education",
@@ -267,6 +284,7 @@ export function ResumeEditor({
               </div>
               <input
                 value={item.dates}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "education",
@@ -280,6 +298,7 @@ export function ResumeEditor({
               />
               <textarea
                 value={item.details.join("\n")}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "education",
@@ -305,6 +324,7 @@ export function ResumeEditor({
         description="Core work history and impact bullets."
         isSelected={selectedSection === "experience"}
         isOpen={openSections.experience}
+        disabled={disabled}
         onSelect={() => onSelectSection("experience")}
         onToggle={() => onToggleSection("experience")}
       >
@@ -314,6 +334,7 @@ export function ResumeEditor({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={item.role}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "experience",
@@ -327,6 +348,7 @@ export function ResumeEditor({
                 />
                 <input
                   value={item.company}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "experience",
@@ -342,6 +364,7 @@ export function ResumeEditor({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={item.location}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "experience",
@@ -355,6 +378,7 @@ export function ResumeEditor({
                 />
                 <input
                   value={item.dates}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "experience",
@@ -369,6 +393,7 @@ export function ResumeEditor({
               </div>
               <textarea
                 value={item.bullets.join("\n")}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "experience",
@@ -394,6 +419,7 @@ export function ResumeEditor({
         description="Selected projects with tech context and proof."
         isSelected={selectedSection === "projects"}
         isOpen={openSections.projects}
+        disabled={disabled}
         onSelect={() => onSelectSection("projects")}
         onToggle={() => onToggleSection("projects")}
       >
@@ -403,6 +429,7 @@ export function ResumeEditor({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <input
                   value={item.name}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "projects",
@@ -416,6 +443,7 @@ export function ResumeEditor({
                 />
                 <input
                   value={item.tech}
+                  disabled={disabled}
                   onChange={(event) =>
                     updateResume(
                       "projects",
@@ -430,6 +458,7 @@ export function ResumeEditor({
               </div>
               <textarea
                 value={item.bullets.join("\n")}
+                disabled={disabled}
                 onChange={(event) =>
                   updateResume(
                     "projects",

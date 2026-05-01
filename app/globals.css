@@ -30,9 +30,19 @@ button {
   height: 1123px;
 }
 
+#cv-preview * {
+  line-height: 1.35;
+}
+
 .print-area {
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(200%);
+  }
 }
 
 @media print {
