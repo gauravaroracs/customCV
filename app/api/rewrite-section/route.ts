@@ -7,7 +7,7 @@ import {
   RewriteResponse
 } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.1-chat-latest";
+const OPENAI_MODEL = "gpt-4o-mini";
 
 const systemPrompt =
   "You are an expert CV editor for German and international tech jobs. You receive the full resume JSON, an optional focused section key, a user instruction, and optionally a job description. Apply the instruction anywhere it is relevant in the resume, not only inside the focused section. Keep all facts truthful. Do not invent companies, dates, tools, numbers, degrees, grades, locations, or achievements. You may improve wording, structure, clarity, concision, ATS alignment, keyword relevance, and formatting emphasis. If the user explicitly asks for emphasis or bold text, represent only that emphasis with Markdown-style **double asterisks** inside string values. Do not introduce any other markup. Preserve the JSON structure and return the fully updated resume JSON. Return valid JSON only.";
@@ -60,9 +60,7 @@ export async function POST(request: Request) {
                     body.selectedSectionKey ? body.fullResume[body.selectedSectionKey] : null,
                   instruction: body.instruction,
                   jobDescription: body.jobDescription ?? ""
-                },
-                null,
-                2
+                }
               )
             }
           ]
