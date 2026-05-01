@@ -29,6 +29,8 @@ type QuickApplyPanelProps = {
   error: string | null;
   isLoading: boolean;
   isEditLoading: boolean;
+  isRescoring: boolean;
+  isSaveSuccess: boolean;
   editSuccess: string | null;
   disabled: boolean;
   activeTab: "preview" | "changes";
@@ -38,6 +40,8 @@ type QuickApplyPanelProps = {
   onGenerate: () => void;
   onTabChange: (tab: "preview" | "changes") => void;
   onApplyEdit: (instruction: string) => void;
+  onRescore: () => void;
+  onSaveApplication: () => void;
 };
 
 export function QuickApplyPanel({
@@ -47,6 +51,8 @@ export function QuickApplyPanel({
   error,
   isLoading,
   isEditLoading,
+  isRescoring,
+  isSaveSuccess,
   editSuccess,
   disabled,
   activeTab,
@@ -55,7 +61,9 @@ export function QuickApplyPanel({
   onMetadataChange,
   onGenerate,
   onTabChange,
-  onApplyEdit
+  onApplyEdit,
+  onRescore,
+  onSaveApplication
 }: QuickApplyPanelProps) {
   const [loadingIndex, setLoadingIndex] = useState(0);
   const [editingField, setEditingField] = useState<keyof JobMetadata | null>(null);
@@ -215,7 +223,44 @@ export function QuickApplyPanel({
             </>
           )}
         </button>
+        <button
+          type="button"
+          onClick={onRescore}
+          disabled={disabled || isRescoring || isLoading || !jobDescription.trim()}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isRescoring ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" />
+              <span>Scoring...</span>
+            </>
+          ) : (
+            <span>📊 Re-check Score</span>
+          )}
+        </button>
       </div>
+
+      {/* Save Application */}
+      {jobDescription.trim() && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={onSaveApplication}
+            disabled={disabled || isLoading}
+            className={`flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+              isSaveSuccess
+                ? "bg-emerald-500 text-white"
+                : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {isSaveSuccess ? (
+              <><span>✓</span><span>Saved to Recent!</span></>
+            ) : (
+              <><span>💾</span><span>Save Application</span><span className="ml-auto text-xs font-normal text-slate-400">{metadata.company || "Company"} · {metadata.role || "Role"}</span></>
+            )}
+          </button>
+        </div>
+      )}
 
       <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50/70 p-2">
         <div className="grid grid-cols-2 gap-2">

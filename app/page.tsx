@@ -65,7 +65,7 @@ async function compressProfilePhoto(file: File) {
     const image = new Image();
 
     image.onload = () => {
-      const maxSize = 256;
+      const maxSize = 600;
       const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -78,7 +78,7 @@ async function compressProfilePhoto(file: File) {
       }
 
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/webp", 0.78));
+      resolve(canvas.toDataURL("image/webp", 0.93));
     };
 
     image.onerror = () => reject(new Error("Failed to load the selected image."));
@@ -148,6 +148,7 @@ function normalizeResumeInput(value: unknown): ResumeData {
         typeof personal.linkedin === "string"
           ? personal.linkedin
           : sampleResume.personal.linkedin,
+      website: typeof personal.website === "string" ? personal.website : "",
       photoUrl: typeof personal.photoUrl === "string" ? personal.photoUrl : ""
     },
     profile: typeof source.profile === "string" ? source.profile : sampleResume.profile,
@@ -243,10 +244,14 @@ export default function HomePage() {
   const [isHydrated, setIsHydrated] = useState(false);
   const [cvFontSize, setCvFontSize] = useState("9.5px");
   const [cvFontWeight, setCvFontWeight] = useState("400");
+  const [cvTopMargin, setCvTopMargin] = useState("12px");
+  const [cvBottomMargin, setCvBottomMargin] = useState("12px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isEditLoading, setIsEditLoading] = useState(false);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const [isRescoring, setIsRescoring] = useState(false);
+  const [isSaveSuccess, setIsSaveSuccess] = useState(false);
 
   useEffect(() => {
     const storedMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY);
@@ -309,6 +314,22 @@ export default function HomePage() {
       setCvFontWeight(storedFontWeight);
     }
 
+    const storedPageMargin = window.localStorage.getItem("cvPageMargin");
+    if (storedPageMargin) {
+      setCvTopMargin(storedPageMargin);
+      setCvBottomMargin(storedPageMargin);
+    }
+
+    const storedTopMargin = window.localStorage.getItem("cvTopMargin");
+    if (storedTopMargin) {
+      setCvTopMargin(storedTopMargin);
+    }
+
+    const storedBottomMargin = window.localStorage.getItem("cvBottomMargin");
+    if (storedBottomMargin) {
+      setCvBottomMargin(storedBottomMargin);
+    }
+
     if (storedRecentApps) {
       try {
         setRecentApplications(JSON.parse(storedRecentApps) as RecentApplication[]);
@@ -355,6 +376,22 @@ export default function HomePage() {
 
     window.localStorage.setItem(FONT_WEIGHT_STORAGE_KEY, cvFontWeight);
   }, [cvFontWeight, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem("cvTopMargin", cvTopMargin);
+  }, [cvTopMargin, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem("cvBottomMargin", cvBottomMargin);
+  }, [cvBottomMargin, isHydrated]);
 
   useEffect(() => {
     const previewElement = document.getElementById("cv-preview");
@@ -490,7 +527,7 @@ export default function HomePage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          masterCV,
+          masterCV: resume,
           jobDescription: jobDescription.trim()
         })
       });
@@ -639,6 +676,54 @@ export default function HomePage() {
     }
   };
 
+  const handleRescore = async () => {
+    if (!jobDescription.trim()) {
+      setError("Paste a job description to score against.");
+      return;
+    }
+    setIsRescoring(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/score-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume, jobDescription: jobDescription.trim() })
+      });
+      const parsed = (await response.json()) as {
+        matchScore: number;
+        matchBreakdown: { keywords: number; experience: number; skills: number; overall: number };
+        warnings: string[];
+        error?: string;
+      };
+      if (!response.ok) throw new Error(parsed.error ?? "Scoring failed.");
+      // Merge the new score into the existing result (keep changes log), or create a minimal result
+      setResult((current) =>
+        current
+          ? { ...current, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown, warnings: parsed.warnings }
+          : { tailoredCV: resume, changes: [], warnings: parsed.warnings, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown }
+      );
+      setActiveResultTab("changes");
+    } catch (rescoreError) {
+      setError(rescoreError instanceof Error ? rescoreError.message : "Scoring failed.");
+    } finally {
+      setIsRescoring(false);
+    }
+  };
+
+  const handleSaveApplication = () => {
+    const newEntry: RecentApplication = {
+      company: jobMetadata.company || "Unknown company",
+      role: jobMetadata.role || "Untitled role",
+      location: jobMetadata.location || "",
+      timestamp: new Date().toISOString(),
+      tailoredCV: resume,
+      jdSnapshot: jobDescription
+    };
+    setRecentApplications((current) => [newEntry, ...current].slice(0, 5));
+    setIsSaveSuccess(true);
+    setTimeout(() => setIsSaveSuccess(false), 3000);
+  };
+
   const handlePhotoUpload = async (file: File) => {
     try {
       const photoUrl = await compressProfilePhoto(file);
@@ -684,9 +769,13 @@ export default function HomePage() {
         recentApplications={recentApplications}
         cvFontSize={cvFontSize}
         cvFontWeight={cvFontWeight}
+        cvTopMargin={cvTopMargin}
+        cvBottomMargin={cvBottomMargin}
         onVersionChange={setSelectedVersion}
         onFontSizeChange={setCvFontSize}
         onFontWeightChange={setCvFontWeight}
+        onTopMarginChange={setCvTopMargin}
+        onBottomMarginChange={setCvBottomMargin}
         onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
         onPrintClick={downloadPDF}
@@ -743,6 +832,8 @@ export default function HomePage() {
             isLoading={isLoading}
             cvFontSize={cvFontSize}
             cvFontWeight={cvFontWeight}
+            cvTopMargin={cvTopMargin}
+            cvBottomMargin={cvBottomMargin}
             onOverflowChange={setPreviewOverflowAmount}
           />
           <div className="no-print mt-3 flex justify-center">
@@ -799,6 +890,8 @@ export default function HomePage() {
           isLoading={isLoading}
           isEditLoading={isEditLoading}
           editSuccess={editSuccess}
+          isRescoring={isRescoring}
+          isSaveSuccess={isSaveSuccess}
           disabled={isLoading || isEditLoading}
           activeTab={activeResultTab}
           onJobDescriptionChange={setJobDescription}
@@ -813,6 +906,8 @@ export default function HomePage() {
           }}
           onTabChange={setActiveResultTab}
           onApplyEdit={(instruction) => { void handleApplyEdit(instruction); }}
+          onRescore={() => { void handleRescore(); }}
+          onSaveApplication={handleSaveApplication}
         />
       </div>
     </div>

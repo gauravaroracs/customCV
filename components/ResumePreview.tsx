@@ -24,6 +24,8 @@ type ResumePreviewProps = {
   isLoading?: boolean;
   cvFontSize: string;
   cvFontWeight: string;
+  cvTopMargin?: string;
+  cvBottomMargin?: string;
   onOverflowChange?: (overflowAmount: number) => void;
 };
 
@@ -89,6 +91,7 @@ function ContactItem({
 }
 
 function renderInlineText(text: string) {
+  if (!text || typeof text !== "string") return null;
   const parts = text.split(/(\*\*.*?\*\*)/g);
 
   return parts.map((part, index) => {
@@ -127,6 +130,8 @@ export function ResumePreview({
   isLoading = false,
   cvFontSize,
   cvFontWeight,
+  cvTopMargin = "12px",
+  cvBottomMargin = "12px",
   onOverflowChange
 }: ResumePreviewProps) {
   const pageRef = useRef<HTMLDivElement | null>(null);
@@ -193,9 +198,8 @@ export function ResumePreview({
       <div className="no-print mb-4 flex w-full max-w-[794px] items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-sm">
         <div className="font-medium text-slate-700">A4 preview boundary: 794 × 1123 px</div>
         <div
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            isOverflowing ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
-          }`}
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${isOverflowing ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"
+            }`}
         >
           {isOverflowing
             ? `Overflowing A4 by ${Math.round(overflowAmount)} px`
@@ -219,7 +223,9 @@ export function ResumePreview({
             ["--cv-font-size-lg" as string]: "calc(var(--cv-font-size) + 0.5px)",
             ["--cv-font-size-xl" as string]: "calc(var(--cv-font-size) + 2px)",
             ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)",
-            ["--cv-font-weight" as string]: cvFontWeight
+            ["--cv-font-weight" as string]: cvFontWeight,
+            ["--cv-top-margin" as string]: cvTopMargin,
+            ["--cv-bottom-margin" as string]: cvBottomMargin
           } as CSSProperties
         }
       >
@@ -235,14 +241,14 @@ export function ResumePreview({
 
         <div className="min-h-full">
           <div ref={contentRef} className="min-h-full" style={{ display: "flex", alignItems: "stretch", minHeight: "1091px" }}>
-            <aside style={{ borderRight: "1px solid #e2e8f0", background: "#fcfbf7", padding: "12px", display: "flex", flexDirection: "column", minHeight: "100%", width: "38%" }}>
+            <aside style={{ borderRight: "1px solid #e2e8f0", background: "#fcfbf7", paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", display: "flex", flexDirection: "column", minHeight: "100%", width: "38%" }}>
               <div style={{ marginBottom: "12px", textAlign: "center" }}>
                 {resume.personal.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <div
                     style={{
-                      width: "114px",
-                      height: "114px",
+                      width: "130px",
+                      height: "130px",
                       borderRadius: "50%",
                       overflow: "hidden",
                       margin: "0 auto 10px auto",
@@ -264,8 +270,8 @@ export function ResumePreview({
                 ) : (
                   <div
                     style={{
-                      width: "114px",
-                      height: "114px",
+                      width: "130px",
+                      height: "130px",
                       borderRadius: "50%",
                       overflow: "hidden",
                       margin: "0 auto 10px auto",
@@ -289,10 +295,11 @@ export function ResumePreview({
                     clear: "both",
                     textAlign: "center",
                     marginTop: "8px",
-                    fontSize: "var(--cv-font-size-xl, 11.5px)",
-                    fontWeight: 600,
-                    color: "#111111",
-                    lineHeight: 1.1
+                    fontSize: "calc(var(--cv-font-size) + 7px)",
+                    fontWeight: 700,
+                    color: "#0d1117",
+                    lineHeight: 1.1,
+                    letterSpacing: "-0.01em"
                   }}
                 >
                   {resume.personal.name}
@@ -386,9 +393,9 @@ export function ResumePreview({
               <div style={{ flex: 1 }} />
             </aside>
 
-            <main style={{ padding: "12px", width: "62%", display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-between" }}>
+            <main style={{ paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", width: "62%", display: "flex", flexDirection: "column", flex: 1, rowGap: "14px" }}>
               <section>
-                <SectionHeading title="Profile" icon={Star} />
+                <SectionHeading title="Summary" icon={Star} />
                 <p
                   style={{
                     fontSize: "var(--cv-font-size, 9.5px)",
@@ -402,7 +409,7 @@ export function ResumePreview({
               </section>
 
               <section>
-                <SectionHeading title="Professional Experience" icon={Briefcase} />
+                <SectionHeading title="Experience" icon={Briefcase} />
                 <div className="space-y-[14px]">
                   {resume.experience.map((exp, index) => (
                     <article key={`${exp.company}-${index}`} style={{ marginBottom: "14px" }}>

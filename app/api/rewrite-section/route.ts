@@ -7,7 +7,7 @@ import {
   RewriteResponse
 } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-4o-mini";
+const OPENAI_MODEL = "gpt-5.1-chat-latest";
 
 // Section names the AI may return. "full" triggers fallback to whole-resume mode.
 const SECTION_NAMES = [
@@ -27,19 +27,47 @@ const systemPrompt = `You are an expert CV editor for German and international t
 
 You receive a CV as JSON, a user instruction, and optionally a job description context.
 
-STRATEGY — minimise your output:
-1. Decide which sections need to change to fulfil the instruction.
-2. If ONLY ONE section changes, set "section" to that section name and "newValue" to ONLY the new JSON value for that section (not the whole CV). This is the fast path — prefer it whenever possible.
-3. If MULTIPLE sections must change (e.g. "make the whole CV more concise"), set "section" to "full" and "newValue" to the complete updated CV JSON as a string.
+Return a JSON object with these fields:
+{
+  "section": "<section name>",
+  "newValue": <the actual new value — NOT a string, the real JSON value>,
+  "summaryOfChanges": ["..."],
+  "warnings": ["..."]
+}
+
+CRITICAL: "newValue" must be the ACTUAL JSON value (array, object, or string) — NOT a JSON-encoded string.
+- If section = "experience": newValue = [ { role, company, location, dates, bullets: [...] }, ... ]
+- If section = "projects":   newValue = [ { name, tech, bullets: [...] }, ... ]
+- If section = "skills":     newValue = { "Programming": [...], "Data": [...], ... }
+- If section = "profile":    newValue = "the profile text as a plain string"
+- If section = "personal":   newValue = { name, email, phone, location, linkedin, website, photoUrl }
+- If section = "languages":  newValue = [ { name, level }, ... ]
+- If section = "education":  newValue = [ { degree, institution, location, dates, details: [...] }, ... ]
+- If section = "full":       newValue = the complete CV object
+
+STRATEGY:
+1. If only ONE section changes → set section to that name, newValue = only that section's new value.
+2. If MULTIPLE sections must change → set section = "full", newValue = the complete updated CV object.
 
 Section names: personal | profile | skills | languages | education | experience | projects | full
 
+STRUCTURAL EDITS — how to handle removals and reductions:
+- "Remove the X role/company entry" → section = "experience", newValue = the experience array WITHOUT that entry.
+- "Reduce X to N bullets" → section = "experience" (or "projects"), keep only the N most impactful bullets for that entry.
+- "Remove bullet: [text]" → section = "experience", remove that specific bullet from the matching entry.
+- "Remove the X project" → section = "projects", newValue = the projects array WITHOUT that project.
+- "Remove [skill] from skills" → section = "skills", newValue = skills object with that item removed.
+- "Remove all education details" → section = "education", newValue = education array with empty details arrays.
+- "Merge bullets X and Y" → combine them into one concise bullet, keep the combined one.
+
+Matching by name: Match role/company/location case-insensitively (e.g. "web development intern", "tech intern", "TU Darmstadt").
+
 Rules:
-- Never invent companies, dates, tools, numbers, degrees, grades, locations, or achievements.
+- Never invent companies, dates, tools, numbers, degrees, or achievements.
 - Keep all facts truthful.
-- For bold/emphasis, use **double asterisks** inside string values ONLY when the user explicitly asks.
-- Preserve the exact JSON structure of whichever section you return.
-- "newValue" must always be a valid JSON string (stringify the value before returning it).`;
+- Use **double asterisks** for bold ONLY when the user explicitly asks.
+- When reducing bullets: keep the most impactful/metric-heavy ones.
+- When removing an array item: return the FULL updated array with that item gone.`;
 
 function getChangedSections(prev: ResumeData, next: ResumeData) {
   return (Object.keys(prev) as ResumeSectionKey[]).filter(
@@ -62,64 +90,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Instruction is required." }, { status: 400 });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 3 });
 
-    const completion = await openai.responses.create({
+    const userPayload = JSON.stringify({
+      cv: body.fullResume,
+      instruction: body.instruction,
+      jobDescriptionContext: body.jobDescription ?? ""
+    });
+    const systemTokenEst = Math.round(systemPrompt.length / 4);
+    const userTokenEst = Math.round(userPayload.length / 4);
+
+    console.log("\n" + "═".repeat(60));
+    console.log(`[rewrite-section] ▶ REQUEST  ${new Date().toISOString()}`);
+    console.log(`  model          : ${OPENAI_MODEL}`);
+    console.log(`  instruction    : "${body.instruction.slice(0, 120)}"`);
+    console.log(`  system prompt  : ~${systemTokenEst} tokens`);
+    console.log(`  user payload   : ~${userTokenEst} tokens`);
+    console.log(`  TOTAL est.     : ~${systemTokenEst + userTokenEst} tokens`);
+    console.log("─".repeat(60));
+
+    const t0 = Date.now();
+
+    const completion = await openai.chat.completions.create({
       model: OPENAI_MODEL,
-      input: [
-        {
-          role: "system",
-          content: [{ type: "input_text", text: systemPrompt }]
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: JSON.stringify({
-                cv: body.fullResume,
-                instruction: body.instruction,
-                jobDescriptionContext: body.jobDescription ?? ""
-              })
-            }
-          ]
-        }
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPayload }
       ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "cv_patch_response",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["section", "newValue", "summaryOfChanges", "warnings"],
-            properties: {
-              section: {
-                type: "string",
-                description:
-                  "The section name that was changed (personal|profile|skills|languages|education|experience|projects), or 'full' if multiple sections changed."
-              },
-              newValue: {
-                type: "string",
-                description:
-                  "JSON-stringified new value: just the section's value for single-section edits, or the entire updated resume JSON for 'full'."
-              },
-              summaryOfChanges: {
-                type: "array",
-                items: { type: "string" }
-              },
-              warnings: {
-                type: "array",
-                items: { type: "string" }
-              }
-            }
-          }
-        }
-      }
+      // Use json_object so newValue can be any JSON type (array/object/string)
+      // without double-serialization issues.
+      response_format: { type: "json_object" }
     });
 
-    const rawText = completion.output_text;
+    const rawText = completion.choices[0]?.message?.content ?? "";
     if (!rawText) {
       return NextResponse.json(
         { error: "OpenAI returned an empty response." },
@@ -129,19 +132,20 @@ export async function POST(request: Request) {
 
     const parsed = JSON.parse(rawText) as {
       section: SectionName;
-      newValue: string;
+      newValue: unknown; // native JSON value — no JSON.parse needed
       summaryOfChanges: string[];
       warnings: string[];
     };
 
-    // Validate section name to be safe
+    // Validate section name
     const section = SECTION_NAMES.includes(parsed.section as SectionName)
       ? parsed.section
       : "full";
 
-    const patchedValue = JSON.parse(parsed.newValue);
+    // newValue is already the parsed JS value — no JSON.parse() needed
+    const patchedValue = parsed.newValue;
 
-    // Merge: if AI only returned one section, splice it in; otherwise treat as full resume
+    // Merge: if single section, splice it in; if full, replace entirely
     const updatedResume: ResumeData =
       section === "full"
         ? (patchedValue as ResumeData)
@@ -150,14 +154,23 @@ export async function POST(request: Request) {
     const response: RewriteResponse = {
       updatedResume,
       changedSections: getChangedSections(body.fullResume, updatedResume),
-      summaryOfChanges: parsed.summaryOfChanges,
-      warnings: parsed.warnings
+      summaryOfChanges: Array.isArray(parsed.summaryOfChanges) ? parsed.summaryOfChanges : [],
+      warnings: Array.isArray(parsed.warnings) ? parsed.warnings : []
     };
+
+    const elapsed = Date.now() - t0;
+    console.log(`[rewrite-section] ✓ RESPONSE  ${elapsed}ms`);
+    console.log(`  section changed: ${section}`);
+    console.log(`  summary        : ${response.summaryOfChanges[0] ?? "(none)"}`);
+    console.log(`  output length  : ${rawText.length} chars`);
+    console.log("═".repeat(60) + "\n");
 
     return NextResponse.json(response);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to rewrite the selected section.";
+    console.error(`[rewrite-section] ✗ ERROR: ${message}`);
+    console.log("═".repeat(60) + "\n");
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

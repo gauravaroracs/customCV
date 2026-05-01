@@ -7,12 +7,16 @@ type ToolbarProps = {
   versions: string[];
   cvFontSize: string;
   cvFontWeight: string;
+  cvTopMargin: string;
+  cvBottomMargin: string;
   disabled?: boolean;
   masterCvName: string;
   recentApplications: RecentApplication[];
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
   onFontWeightChange: (value: string) => void;
+  onTopMarginChange: (value: string) => void;
+  onBottomMarginChange: (value: string) => void;
   onImportClick: () => void;
   onExportClick: () => void;
   onPrintClick: () => void;
@@ -28,12 +32,16 @@ export function Toolbar({
   versions,
   cvFontSize,
   cvFontWeight,
+  cvTopMargin,
+  cvBottomMargin,
   disabled = false,
   masterCvName,
   recentApplications,
   onVersionChange,
   onFontSizeChange,
   onFontWeightChange,
+  onTopMarginChange,
+  onBottomMarginChange,
   onImportClick,
   onExportClick,
   onPrintClick,
@@ -190,6 +198,40 @@ export function Toolbar({
               <option value="400">Regular</option>
               <option value="450">Medium</option>
               <option value="500">Semibold</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="font-medium text-slate-500">Top ↑</span>
+            <select
+              value={cvTopMargin}
+              disabled={disabled}
+              onChange={(event) => onTopMarginChange(event.target.value)}
+              className="bg-transparent outline-none disabled:cursor-not-allowed"
+            >
+              <option value="4px">4px</option>
+              <option value="8px">8px</option>
+              <option value="12px">12px</option>
+              <option value="18px">18px</option>
+              <option value="24px">24px</option>
+              <option value="32px">32px</option>
+              <option value="40px">40px</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="font-medium text-slate-500">Bottom ↓</span>
+            <select
+              value={cvBottomMargin}
+              disabled={disabled}
+              onChange={(event) => onBottomMarginChange(event.target.value)}
+              className="bg-transparent outline-none disabled:cursor-not-allowed"
+            >
+              <option value="4px">4px</option>
+              <option value="8px">8px</option>
+              <option value="12px">12px</option>
+              <option value="18px">18px</option>
+              <option value="24px">24px</option>
+              <option value="32px">32px</option>
+              <option value="40px">40px</option>
             </select>
           </label>
           <button

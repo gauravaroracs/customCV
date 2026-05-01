@@ -20,11 +20,10 @@ function updateArrayItem<T>(items: T[], index: number, updater: (item: T) => T) 
 }
 
 function fieldClassName(selected: boolean) {
-  return `w-full rounded-2xl border px-3 py-2 text-sm text-slate-700 outline-none transition ${
-    selected
+  return `w-full rounded-2xl border px-3 py-2 text-sm text-slate-700 outline-none transition ${selected
       ? "border-blue-200 bg-blue-50/40 focus:border-blue-400"
       : "border-slate-200 bg-slate-50/60 focus:border-slate-300"
-  }`;
+    }`;
 }
 
 export function ResumeEditor({
@@ -320,7 +319,7 @@ export function ResumeEditor({
       </SectionCard>
 
       <SectionCard
-        title="Professional Experience"
+        title="Experience"
         description="Core work history and impact bullets."
         isSelected={selectedSection === "experience"}
         isOpen={openSections.experience}
