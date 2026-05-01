@@ -22,6 +22,7 @@ type ResumePreviewProps = {
   resume: ResumeData;
   isLoading?: boolean;
   cvFontSize: string;
+  cvFontWeight: string;
   onOverflowChange?: (overflowAmount: number) => void;
 };
 
@@ -75,9 +76,9 @@ function ContactItem({
         alignItems: "flex-start",
         gap: "8px",
         fontSize: "var(--cv-font-size-sm, 9px)",
-        fontWeight: 400,
+        fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
         lineHeight: 1.6,
-        color: "#1a1a1a"
+        color: "#0d0d0d"
       }}
     >
       <Icon size={11} color="#1a6b9e" style={{ marginTop: "1px", flexShrink: 0 }} />
@@ -124,6 +125,7 @@ export function ResumePreview({
   resume,
   isLoading = false,
   cvFontSize,
+  cvFontWeight,
   onOverflowChange
 }: ResumePreviewProps) {
   const pageRef = useRef<HTMLDivElement | null>(null);
@@ -215,7 +217,8 @@ export function ResumePreview({
             ["--cv-font-size-sm" as string]: "calc(var(--cv-font-size) - 0.5px)",
             ["--cv-font-size-lg" as string]: "calc(var(--cv-font-size) + 0.5px)",
             ["--cv-font-size-xl" as string]: "calc(var(--cv-font-size) + 2px)",
-            ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)"
+            ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)",
+            ["--cv-font-weight" as string]: cvFontWeight
           } as CSSProperties
         }
       >
@@ -237,13 +240,13 @@ export function ResumePreview({
                   // eslint-disable-next-line @next/next/no-img-element
                   <div
                     style={{
-                      width: "90px",
-                      height: "90px",
+                      width: "114px",
+                      height: "114px",
                       borderRadius: "50%",
                       overflow: "hidden",
                       margin: "0 auto 10px auto",
                       display: "block",
-                      border: "1px solid #e2e8f0"
+                      border: "2px solid #e2e8f0"
                     }}
                   >
                     <img
@@ -260,8 +263,8 @@ export function ResumePreview({
                 ) : (
                   <div
                     style={{
-                      width: "90px",
-                      height: "90px",
+                      width: "114px",
+                      height: "114px",
                       borderRadius: "50%",
                       overflow: "hidden",
                       margin: "0 auto 10px auto",
@@ -339,9 +342,9 @@ export function ResumePreview({
                       <p
                         style={{
                           fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: 400,
+                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                           lineHeight: 1.6,
-                          color: "#1a1a1a"
+                          color: "#0d0d0d"
                         }}
                       >
                         {renderInlineText(values.join(" • "))}
@@ -376,22 +379,22 @@ export function ResumePreview({
               <div style={{ flex: 1 }} />
             </aside>
 
-            <main style={{ padding: "12px", width: "62%" }}>
-              <section style={{ marginBottom: "14px" }}>
+            <main style={{ padding: "12px", width: "62%", display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-between" }}>
+              <section>
                 <SectionHeading title="Profile" icon={Star} />
                 <p
                   style={{
                     fontSize: "var(--cv-font-size, 9.5px)",
-                    fontWeight: 400,
+                    fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                     lineHeight: 1.6,
-                    color: "#1a1a1a"
+                    color: "#0d0d0d"
                   }}
                 >
                   {renderInlineText(resume.profile)}
                 </p>
               </section>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section>
                 <SectionHeading title="Professional Experience" icon={Briefcase} />
                 <div className="space-y-[14px]">
                   {resume.experience.map((exp, index) => (
@@ -420,9 +423,9 @@ export function ResumePreview({
                           listStyle: "disc",
                           paddingLeft: "14px",
                           fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: 400,
+                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                           lineHeight: 1.55,
-                          color: "#1a1a1a"
+                          color: "#0d0d0d"
                         }}
                       >
                         {exp.bullets.map((bullet, bulletIndex) => (
@@ -436,7 +439,7 @@ export function ResumePreview({
                 </div>
               </section>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section>
                 <SectionHeading title="Projects" icon={FolderKanban} />
                 <div className="space-y-[14px]">
                   {resume.projects.map((project, index) => (
@@ -465,9 +468,9 @@ export function ResumePreview({
                           listStyle: "disc",
                           paddingLeft: "14px",
                           fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: 400,
+                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                           lineHeight: 1.55,
-                          color: "#1a1a1a"
+                          color: "#0d0d0d"
                         }}
                       >
                         {project.bullets.map((bullet, bulletIndex) => (
@@ -481,7 +484,7 @@ export function ResumePreview({
                 </div>
               </section>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section>
                 <SectionHeading title="Education" icon={GraduationCap} />
                 <div className="space-y-[12px]">
                   {resume.education.map((item, index) => (
@@ -519,9 +522,9 @@ export function ResumePreview({
                             listStyle: "disc",
                             paddingLeft: "14px",
                             fontSize: "var(--cv-font-size, 9.5px)",
-                            fontWeight: 400,
+                            fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                             lineHeight: 1.55,
-                            color: "#1a1a1a"
+                            color: "#0d0d0d"
                           }}
                         >
                           {item.details.map((detail, detailIndex) => (

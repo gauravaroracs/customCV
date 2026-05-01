@@ -13,7 +13,8 @@ Rules (strict):
 4. Experience bullets: rewrite bullets that relate to a JD keyword using the JD's exact terminology. Keep all metrics (numbers, percentages, QPS) intact. Deprioritize bullets irrelevant to this role by moving them last.
 5. Projects: reorder so most JD-relevant project appears first. Rewrite bullets to emphasize what the JD cares about.
 6. Also return a matchScore (0-100) and matchBreakdown with scores for keywords match, experience relevance, and skills coverage. Be honest — if German B2 is required and candidate is A2, deduct points. Score based on how likely this CV is to be shortlisted.
-7. Return this exact structure:
+7. Auto-bold: In the profile paragraph and all experience/project bullets, wrap crucial terms in **double asterisks**. Bold: (a) exact JD skill/technology matches (e.g. **JavaScript**, **Kubernetes**), (b) measurable impact metrics (e.g. **270 QPS**, **p99 820→510 ms**, **35%**), (c) the single most important role-defining phrase per bullet. Limit to 2–4 bold spans per bullet. Do not bold everything — only the terms that matter most to this specific JD.
+8. Return this exact structure:
 {
   tailoredCV: { ...same schema as masterCV },
   changes: ['string describing each change made'],

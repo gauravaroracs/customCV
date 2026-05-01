@@ -22,6 +22,7 @@ const MASTER_CV_STORAGE_KEY = "masterCV";
 const VERSION_STORAGE_KEY = "cvpilot-version";
 const RECENT_APPS_STORAGE_KEY = "recentApps";
 const FONT_SIZE_STORAGE_KEY = "cvFontSize";
+const FONT_WEIGHT_STORAGE_KEY = "cvFontWeight";
 
 const versions = ["Java Backend Heavy", "General Tech", "Germany Targeted"];
 
@@ -241,6 +242,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [cvFontSize, setCvFontSize] = useState("9.5px");
+  const [cvFontWeight, setCvFontWeight] = useState("400");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isEditLoading, setIsEditLoading] = useState(false);
@@ -302,6 +304,11 @@ export default function HomePage() {
       setCvFontSize(storedFontSize);
     }
 
+    const storedFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY);
+    if (storedFontWeight) {
+      setCvFontWeight(storedFontWeight);
+    }
+
     if (storedRecentApps) {
       try {
         setRecentApplications(JSON.parse(storedRecentApps) as RecentApplication[]);
@@ -340,6 +347,14 @@ export default function HomePage() {
 
     window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, cvFontSize);
   }, [cvFontSize, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(FONT_WEIGHT_STORAGE_KEY, cvFontWeight);
+  }, [cvFontWeight, isHydrated]);
 
   useEffect(() => {
     const previewElement = document.getElementById("cv-preview");
@@ -668,8 +683,10 @@ export default function HomePage() {
         masterCvName={masterCV?.personal.name || resume.personal.name || "Not set"}
         recentApplications={recentApplications}
         cvFontSize={cvFontSize}
+        cvFontWeight={cvFontWeight}
         onVersionChange={setSelectedVersion}
         onFontSizeChange={setCvFontSize}
+        onFontWeightChange={setCvFontWeight}
         onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
         onPrintClick={downloadPDF}
@@ -725,6 +742,7 @@ export default function HomePage() {
             resume={resume}
             isLoading={isLoading}
             cvFontSize={cvFontSize}
+            cvFontWeight={cvFontWeight}
             onOverflowChange={setPreviewOverflowAmount}
           />
           <div className="no-print mt-3 flex justify-center">

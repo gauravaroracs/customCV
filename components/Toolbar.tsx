@@ -6,11 +6,13 @@ type ToolbarProps = {
   selectedVersion: string;
   versions: string[];
   cvFontSize: string;
+  cvFontWeight: string;
   disabled?: boolean;
   masterCvName: string;
   recentApplications: RecentApplication[];
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
+  onFontWeightChange: (value: string) => void;
   onImportClick: () => void;
   onExportClick: () => void;
   onPrintClick: () => void;
@@ -25,11 +27,13 @@ export function Toolbar({
   selectedVersion,
   versions,
   cvFontSize,
+  cvFontWeight,
   disabled = false,
   masterCvName,
   recentApplications,
   onVersionChange,
   onFontSizeChange,
+  onFontWeightChange,
   onImportClick,
   onExportClick,
   onPrintClick,
@@ -172,6 +176,20 @@ export function Toolbar({
               <option value="10px">10px (Comfortable)</option>
               <option value="10.5px">10.5px (Large)</option>
               <option value="11px">11px (Very large)</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="font-medium text-slate-500">Weight</span>
+            <select
+              value={cvFontWeight}
+              disabled={disabled}
+              onChange={(event) => onFontWeightChange(event.target.value)}
+              className="bg-transparent outline-none disabled:cursor-not-allowed"
+            >
+              <option value="300">Light</option>
+              <option value="400">Regular</option>
+              <option value="450">Medium</option>
+              <option value="500">Semibold</option>
             </select>
           </label>
           <button
