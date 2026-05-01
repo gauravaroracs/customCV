@@ -13,7 +13,8 @@ import {
   Star,
   UserRound,
   Wrench,
-  Linkedin
+  Linkedin,
+  Globe
 } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ResumeData } from "@/types/resume";
@@ -320,6 +321,12 @@ export function ResumePreview({
                     icon={Linkedin}
                     text={resume.personal.linkedin.replace(/\*\*/g, "")}
                   />
+                  {resume.personal.website && (
+                    <ContactItem
+                      icon={Globe}
+                      text={resume.personal.website.replace(/\*\*/g, "")}
+                    />
+                  )}
                 </div>
               </section>
 

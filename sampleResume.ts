@@ -7,6 +7,7 @@ export const sampleResume: ResumeData = {
     phone: "+49 15212960879",
     location: "Darmstadt, Germany",
     linkedin: "linkedin.com/in/gauravaroracs",
+    website: "gaurav-arora-cs.vercel.app",
     photoUrl: ""
   },
   profile:

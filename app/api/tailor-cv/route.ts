@@ -75,13 +75,14 @@ export async function POST(request: Request) {
                   personal: {
                     type: "object",
                     additionalProperties: false,
-                    required: ["name", "email", "phone", "location", "linkedin", "photoUrl"],
+                    required: ["name", "email", "phone", "location", "linkedin", "website", "photoUrl"],
                     properties: {
                       name: { type: "string" },
                       email: { type: "string" },
                       phone: { type: "string" },
                       location: { type: "string" },
                       linkedin: { type: "string" },
+                      website: { type: "string" },
                       photoUrl: { type: "string" }
                     }
                   },

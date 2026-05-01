@@ -41,6 +41,7 @@ export type ResumeData = {
     phone: string;
     location: string;
     linkedin: string;
+    website: string;
     photoUrl: string;
   };
   profile: string;
