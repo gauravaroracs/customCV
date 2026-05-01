@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { JobMetadata } from "@/types/resume";
 
+const OPENAI_MODEL = "gpt-5.1-chat-latest";
+
 const systemPrompt =
   'Extract: company, role title, location. Return JSON only: {company, role, location}';
 
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
     });
 
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: OPENAI_MODEL,
       input: [
         {
           role: "system",

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { TailorRequest, TailorResponse } from "@/types/resume";
 
+const OPENAI_MODEL = "gpt-5.1-chat-latest";
+
 const systemPrompt = `You are a professional CV editor. You receive a master CV as JSON and a job description. Return ONLY a raw JSON object, no markdown, no explanation, no code fences.
 
 Rules (strict):
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
     });
 
     const response = await openai.responses.create({
-      model: "gpt-4o",
+      model: OPENAI_MODEL,
       input: [
         {
           role: "system",

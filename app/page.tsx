@@ -243,6 +243,8 @@ export default function HomePage() {
   const [cvFontSize, setCvFontSize] = useState("9.5px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const storedMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY);
@@ -590,6 +592,38 @@ export default function HomePage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isLoading]);
 
+  const handleApplyEdit = async (instruction: string) => {
+    setIsEditLoading(true);
+    setEditSuccess(null);
+    try {
+      const response = await fetch("/api/rewrite-section", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullResume: resume,
+          instruction,
+          jobDescription: jobDescription.trim() || undefined
+        })
+      });
+      const parsed = (await response.json()) as {
+        updatedResume: ResumeData;
+        summaryOfChanges: string[];
+        warnings: string[];
+        error?: string;
+      };
+      if (!response.ok) throw new Error(parsed.error ?? "Edit failed.");
+      const edited = parsed.updatedResume;
+      edited.personal.photoUrl = resume.personal.photoUrl;
+      setResume(edited);
+      setEditSuccess(parsed.summaryOfChanges?.[0] ?? "Done!");
+      setTimeout(() => setEditSuccess(null), 4000);
+    } catch (editError) {
+      setError(editError instanceof Error ? editError.message : "Edit failed.");
+    } finally {
+      setIsEditLoading(false);
+    }
+  };
+
   const handlePhotoUpload = async (file: File) => {
     try {
       const photoUrl = await compressProfilePhoto(file);
@@ -745,7 +779,9 @@ export default function HomePage() {
           result={result}
           error={error}
           isLoading={isLoading}
-          disabled={isLoading}
+          isEditLoading={isEditLoading}
+          editSuccess={editSuccess}
+          disabled={isLoading || isEditLoading}
           activeTab={activeResultTab}
           onJobDescriptionChange={setJobDescription}
           onJobDescriptionPaste={(value) => {
@@ -758,6 +794,7 @@ export default function HomePage() {
             void handleGenerate();
           }}
           onTabChange={setActiveResultTab}
+          onApplyEdit={(instruction) => { void handleApplyEdit(instruction); }}
         />
       </div>
     </div>

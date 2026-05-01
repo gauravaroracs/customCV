@@ -28,6 +28,8 @@ type QuickApplyPanelProps = {
   result: TailorResponse | null;
   error: string | null;
   isLoading: boolean;
+  isEditLoading: boolean;
+  editSuccess: string | null;
   disabled: boolean;
   activeTab: "preview" | "changes";
   onJobDescriptionChange: (value: string) => void;
@@ -35,6 +37,7 @@ type QuickApplyPanelProps = {
   onMetadataChange: (key: keyof JobMetadata, value: string) => void;
   onGenerate: () => void;
   onTabChange: (tab: "preview" | "changes") => void;
+  onApplyEdit: (instruction: string) => void;
 };
 
 export function QuickApplyPanel({
@@ -43,16 +46,20 @@ export function QuickApplyPanel({
   result,
   error,
   isLoading,
+  isEditLoading,
+  editSuccess,
   disabled,
   activeTab,
   onJobDescriptionChange,
   onJobDescriptionPaste,
   onMetadataChange,
   onGenerate,
-  onTabChange
+  onTabChange,
+  onApplyEdit
 }: QuickApplyPanelProps) {
   const [loadingIndex, setLoadingIndex] = useState(0);
   const [editingField, setEditingField] = useState<keyof JobMetadata | null>(null);
+  const [editInstruction, setEditInstruction] = useState("");
 
   useEffect(() => {
     if (!isLoading) {
@@ -160,7 +167,57 @@ export function QuickApplyPanel({
         </button>
       </div>
 
-      <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50/70 p-2">
+      {/* Quick Edit box */}
+      <div className="mt-5 rounded-[24px] border border-violet-200 bg-violet-50/60 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Quick Edit</span>
+          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">AI</span>
+        </div>
+        <p className="mb-3 text-xs text-slate-500">Type any change in plain English and the AI will apply it to your CV. You can also ask for **bold** emphasis.</p>
+        <textarea
+          value={editInstruction}
+          onChange={(e) => setEditInstruction(e.target.value)}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && editInstruction.trim() && !isEditLoading) {
+              e.preventDefault();
+              onApplyEdit(editInstruction.trim());
+              setEditInstruction("");
+            }
+          }}
+          rows={3}
+          disabled={disabled || isEditLoading}
+          placeholder={'e.g. "Set German to B1 learning", "Make my profile more confident", "Bold the QPS numbers"'}
+          className="w-full rounded-2xl border border-violet-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        {editSuccess ? (
+          <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">✓ {editSuccess}</div>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            if (editInstruction.trim()) {
+              onApplyEdit(editInstruction.trim());
+              setEditInstruction("");
+            }
+          }}
+          disabled={disabled || isEditLoading || !editInstruction.trim()}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isEditLoading ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span>Applying edit...</span>
+            </>
+          ) : (
+            <>
+              <span>✏ Apply Edit</span>
+              <span className="text-xs font-medium text-violet-200">⌘+Enter</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="mt-5 rounded-[24px] border border-slate-200 bg-slate-50/70 p-2">
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
