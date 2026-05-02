@@ -52,18 +52,27 @@ export function generateATSText(cv: ResumeData) {
     .trim();
 }
 
-function compact(value: string) {
-  return value.replace(/[^a-z0-9]+/gi, "").trim() || "Role";
+function compact(value: string, fallback = "") {
+  return value.replace(/[^a-z0-9]+/gi, "").trim() || fallback;
+}
+
+function stripSpaces(value: string) {
+  return value.replace(/\s+/g, " ").trim();
 }
 
 export function getATSFilename(cv: ResumeData, metadata: JobMetadata) {
-  return `${compact(cv.personal.name)}_${compact(metadata.role)}_${compact(metadata.company)}_ATS.txt`;
+  return `${compact(cv.personal.name, "CV")}_${compact(metadata.role, "Role")}_${compact(metadata.company, "Company")}_ATS.txt`;
 }
 
 export function getATSPdfFilename(cv: ResumeData, metadata: JobMetadata) {
   const name = compact(cv.personal.name) || "CV";
-  const company = compact(metadata.company) || "Company";
-  return `${name}_ATS_${company}.pdf`;
+  const company = compact(metadata.company);
+  return company ? `${name}_ATS_${company}.pdf` : `${name}_ATS.pdf`;
+}
+
+export function getATSPdfTitle(cv: ResumeData, metadata: JobMetadata) {
+  const name = stripSpaces(cv.personal.name) || "CV";
+  return metadata.company.trim() ? `${name} ATS ${metadata.company.trim()}` : `${name} ATS`;
 }
 
 /** Generate clean single-column ATS-safe HTML for print-to-PDF. */
@@ -72,14 +81,21 @@ export function generateATSHtml(cv: ResumeData): string {
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
   const strip = (s: string) => s.replace(/\*\*/g, "").trim();
+  const normalizeUrl = (url: string) =>
+    /^https?:\/\//i.test(url) ? url : `https://${url}`;
+
+  const contactLink = (value: string, label = value) =>
+    value
+      ? `<a href="${esc(normalizeUrl(value))}" style="color:#000;text-decoration:underline">${esc(label)}</a>`
+      : "";
 
   const contact = [
-    cv.personal.email,
+    cv.personal.email ? `<a href="mailto:${esc(cv.personal.email)}" style="color:#000;text-decoration:underline">${esc(cv.personal.email)}</a>` : "",
     cv.personal.phone,
     cv.personal.location,
-    cv.personal.linkedin,
-    cv.personal.website
-  ].filter(Boolean).map(esc).join(" &middot; ");
+    contactLink(cv.personal.linkedin),
+    contactLink(cv.personal.website)
+  ].filter(Boolean).join(" &middot; ");
 
   const skillsHtml = Object.entries(cv.skills)
     .map(([group, values]) =>

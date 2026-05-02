@@ -31,6 +31,8 @@ const files = {
   photo: "photo.txt"
 } as const;
 
+let writeQueue: Promise<unknown> = Promise.resolve();
+
 async function ensureStorageDir() {
   await fs.mkdir(storageDir, { recursive: true });
 }
@@ -62,12 +64,23 @@ async function readTextFile(filename: string): Promise<string> {
 
 async function writeJsonFile(filename: string, value: unknown) {
   await ensureStorageDir();
-  await fs.writeFile(path.join(storageDir, filename), `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await writeFileAtomic(filename, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 async function writeTextFile(filename: string, value: string) {
   await ensureStorageDir();
-  await fs.writeFile(path.join(storageDir, filename), value, "utf8");
+  await writeFileAtomic(filename, value);
+}
+
+async function writeFileAtomic(filename: string, value: string) {
+  const destination = path.join(storageDir, filename);
+  const temporary = path.join(
+    storageDir,
+    `.${filename}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`
+  );
+
+  await fs.writeFile(temporary, value, "utf8");
+  await fs.rename(temporary, destination);
 }
 
 async function readStorage(): Promise<CvPilotStorage> {
@@ -94,30 +107,37 @@ export async function GET() {
 export async function PATCH(request: Request) {
   try {
     const body = (await request.json()) as CvPilotStorage;
-    const current = await readStorage();
+    const nextWrite = writeQueue
+      .catch(() => undefined)
+      .then(async () => {
+        const current = await readStorage();
 
-    if ("masterCV" in body) {
-      await writeJsonFile(files.masterCV, body.masterCV ?? null);
-    }
+        if ("masterCV" in body) {
+          await writeJsonFile(files.masterCV, body.masterCV ?? null);
+        }
 
-    if ("workingCV" in body) {
-      await writeJsonFile(files.workingCV, body.workingCV ?? null);
-    }
+        if ("workingCV" in body) {
+          await writeJsonFile(files.workingCV, body.workingCV ?? null);
+        }
 
-    if ("recentApplications" in body) {
-      await writeJsonFile(files.recentApplications, body.recentApplications ?? []);
-    }
+        if ("recentApplications" in body) {
+          await writeJsonFile(files.recentApplications, body.recentApplications ?? []);
+        }
 
-    if ("settings" in body) {
-      await writeJsonFile(files.settings, {
-        ...current.settings,
-        ...body.settings
+        if ("settings" in body) {
+          await writeJsonFile(files.settings, {
+            ...current.settings,
+            ...body.settings
+          });
+        }
+
+        if ("photo" in body) {
+          await writeTextFile(files.photo, body.photo ?? "");
+        }
       });
-    }
 
-    if ("photo" in body) {
-      await writeTextFile(files.photo, body.photo ?? "");
-    }
+    writeQueue = nextWrite;
+    await nextWrite;
 
     return NextResponse.json(await readStorage());
   } catch (error) {

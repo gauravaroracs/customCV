@@ -6,7 +6,7 @@ import { QuickApplyPanel } from "@/components/QuickApplyPanel";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
-import { generateATSText, generateATSHtml, getATSPdfFilename } from "@/lib/cvText";
+import { generateATSText, generateATSHtml, getATSPdfFilename, getATSPdfTitle } from "@/lib/cvText";
 import { sampleResume } from "@/sampleResume";
 import {
   JobMetadata,
@@ -697,7 +697,7 @@ export default function HomePage() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          masterCV: resume,
+          masterCV,
           jobDescription: jobDescription.trim()
         })
       });
@@ -943,7 +943,7 @@ export default function HomePage() {
     const styleElement = document.createElement("style");
     let restored = false;
 
-    document.title = getATSPdfFilename(resume, jobMetadata);
+    document.title = getATSPdfTitle(resume, jobMetadata);
     styleElement.id = ATS_PRINT_STYLE_ID;
     styleElement.textContent = `
 @media print {
