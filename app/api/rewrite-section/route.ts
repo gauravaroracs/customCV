@@ -65,6 +65,9 @@ Matching by name: Match role/company/location case-insensitively (e.g. "web deve
 Rules:
 - Never invent companies, dates, tools, numbers, degrees, or achievements.
 - Keep all facts truthful.
+- Apply the user's requested wording exactly for factual labels like language levels.
+- If the user includes reasoning or critique, use it to decide the edit but do not insert that reasoning into the CV.
+- For skill cleanup, remove duplicates across groups and prefer one concise combined group over repeated sections.
 - Use **double asterisks** for bold ONLY when the user explicitly asks.
 - When reducing bullets: keep the most impactful/metric-heavy ones.
 - When removing an array item: return the FULL updated array with that item gone.`;
@@ -90,7 +93,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Instruction is required." }, { status: 400 });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 3 });
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      maxRetries: 3,
+      timeout: 30000
+    });
 
     const userPayload = JSON.stringify({
       cv: body.fullResume,

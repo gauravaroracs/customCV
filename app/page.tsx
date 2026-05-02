@@ -276,6 +276,132 @@ function withStoredPhoto(cv: ResumeData, storedPhoto: string | null) {
   };
 }
 
+function getSkillKey(skill: string) {
+  const normalized = skill
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  if (/\bpython\b/.test(normalized)) return "python";
+  if (/\bsql\b|\bmysql\b|\bpostgresql\b/.test(normalized)) return "sql";
+  if (/\bcsv\b|\bexcel\b/.test(normalized)) return "csv-excel";
+  if (/\breporting\b/.test(normalized) && /\bautomation\b/.test(normalized)) return "reporting-automation";
+  return normalized;
+}
+
+function uniqueSkills(values: string[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const key = getSkillKey(value);
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function applyDeterministicQuickEdit(
+  currentResume: ResumeData,
+  instruction: string
+): { updatedResume: ResumeData; summary: string } | null {
+  const lowerInstruction = instruction.toLowerCase();
+  const nextResume: ResumeData = {
+    ...currentResume,
+    personal: { ...currentResume.personal },
+    skills: Object.fromEntries(
+      Object.entries(currentResume.skills).map(([group, values]) => [group, [...values]])
+    ),
+    languages: currentResume.languages.map((language) => ({ ...language })),
+    education: currentResume.education.map((education) => ({
+      ...education,
+      details: [...education.details]
+    })),
+    experience: currentResume.experience.map((experience) => ({
+      ...experience,
+      bullets: [...experience.bullets]
+    })),
+    projects: currentResume.projects.map((project) => ({
+      ...project,
+      bullets: [...project.bullets]
+    }))
+  };
+  const summaries: string[] = [];
+
+  if (
+    lowerInstruction.includes("german") &&
+    lowerInstruction.includes("a2") &&
+    lowerInstruction.includes("b1")
+  ) {
+    const germanIndex = nextResume.languages.findIndex((language) =>
+      language.name.toLowerCase().includes("german")
+    );
+
+    if (germanIndex >= 0) {
+      nextResume.languages[germanIndex] = {
+        ...nextResume.languages[germanIndex],
+        level: "A2, actively learning B1"
+      };
+    } else {
+      nextResume.languages.push({ name: "German", level: "A2, actively learning B1" });
+    }
+
+    summaries.push("Set German to A2, actively learning B1.");
+  }
+
+  const asksForDataMerge =
+    lowerInstruction.includes("data section") &&
+    (lowerInstruction.includes("merge") ||
+      lowerInstruction.includes("remove") ||
+      lowerInstruction.includes("repetitive") ||
+      lowerInstruction.includes("crowded"));
+  const asksForSkillDedupe =
+    lowerInstruction.includes("skill") &&
+    (lowerInstruction.includes("repetitive") || lowerInstruction.includes("crowded"));
+
+  if (asksForDataMerge || asksForSkillDedupe) {
+    const targetGroup =
+      Object.keys(nextResume.skills).find((group) => /ai.*automation.*data/i.test(group)) ??
+      "AI, Automation & Data";
+    const dataGroup = Object.keys(nextResume.skills).find((group) => group.toLowerCase() === "data");
+    const mergedValues = [
+      ...(nextResume.skills[targetGroup] ?? []),
+      ...(dataGroup ? nextResume.skills[dataGroup] ?? [] : [])
+    ];
+
+    nextResume.skills[targetGroup] = uniqueSkills(mergedValues);
+
+    if (dataGroup && dataGroup !== targetGroup) {
+      delete nextResume.skills[dataGroup];
+    }
+
+    const preferredKeys = new Set(nextResume.skills[targetGroup].map(getSkillKey));
+    nextResume.skills = Object.fromEntries(
+      Object.entries(nextResume.skills)
+        .map(([group, values]) => {
+          if (group === targetGroup) {
+            return [group, values] as const;
+          }
+
+          return [
+            group,
+            uniqueSkills(values).filter((value) => !preferredKeys.has(getSkillKey(value)))
+          ] as const;
+        })
+        .filter(([, values]) => values.length > 0)
+    );
+
+    summaries.push(`Merged Data skills into ${targetGroup} and removed repeated skill entries.`);
+  }
+
+  return summaries.length > 0
+    ? { updatedResume: nextResume, summary: summaries.join(" ") }
+    : null;
+}
+
 function normalizeRecentApplications(value: unknown): RecentApplication[] {
   if (!Array.isArray(value)) {
     return [];
@@ -816,6 +942,16 @@ export default function HomePage() {
     setIsEditLoading(true);
     setEditSuccess(null);
     try {
+      const deterministicEdit = applyDeterministicQuickEdit(resume, instruction);
+      if (deterministicEdit) {
+        setResume(deterministicEdit.updatedResume);
+        setResult(null);
+        setError(null);
+        setEditSuccess(deterministicEdit.summary);
+        setTimeout(() => setEditSuccess(null), 4000);
+        return;
+      }
+
       const response = await fetch("/api/rewrite-section", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
