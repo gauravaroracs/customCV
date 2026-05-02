@@ -336,6 +336,7 @@ function getBulletLines(block: string) {
 function parseSkillsReplacement(block: string) {
   const skills: Record<string, string[]> = {};
   let currentGroup = "";
+  const knownGroups = new Set(["frontend", "backend", "tools", "soft skills"]);
 
   block.split("\n").forEach((rawLine) => {
     const line = rawLine.trim();
@@ -344,14 +345,25 @@ function parseSkillsReplacement(block: string) {
     }
 
     const groupMatch = /^([^:-][^:]+):$/.exec(line);
-    if (groupMatch) {
-      currentGroup = groupMatch[1].trim();
+    const isPlainGroup = /^[A-Z][A-Z\s&]+$/.test(line) || knownGroups.has(line.toLowerCase());
+    if (groupMatch || isPlainGroup) {
+      currentGroup = groupMatch ? groupMatch[1].trim() : line;
       skills[currentGroup] = [];
       return;
     }
 
     if (currentGroup && line.startsWith("-")) {
       skills[currentGroup].push(line.replace(/^-\s*/, "").trim());
+      return;
+    }
+
+    if (currentGroup && line.includes("•")) {
+      skills[currentGroup].push(
+        ...line
+          .split("•")
+          .map((value) => value.trim())
+          .filter(Boolean)
+      );
     }
   });
 
@@ -439,8 +451,8 @@ function applyDeterministicQuickEdit(
 
   const summaryBlock = getInstructionBlock(
     instruction,
-    /change\s+summary[\s\S]*?replace\s+with:\s*/i,
-    [/\n\s*3\.\s+reorder\s+skills/i, /\n\s*\d+\.\s+/i]
+    /(?:change|shorten)\s+(?:the\s+)?summary[\s\S]*?replace\s+with:\s*/i,
+    [/\n\s*2\.\s+reduce\s+software\s+engineer/i, /\n\s*3\.\s+reorder\s+skills/i, /\n\s*\d+\.\s+/i]
   );
 
   if (summaryBlock) {
@@ -460,6 +472,10 @@ function applyDeterministicQuickEdit(
     instruction,
     /replace\s+skills\s+with:\s*/i,
     [/\n\s*4\.\s+add\s+one\s+project/i, /\n\s*\d+\.\s+/i]
+  ) || getInstructionBlock(
+    instruction,
+    /shorten\s+skills[\s\S]*?use\s+this\s+shorter\s+version:\s*/i,
+    [/\n\s*6\.\s+add\s+gpa/i, /\n\s*\d+\.\s+/i]
   );
   const replacementSkills = parseSkillsReplacement(skillsBlock);
 
@@ -494,7 +510,11 @@ function applyDeterministicQuickEdit(
   const softwareEngineerBulletsBlock = getInstructionBlock(
     instruction,
     /replace\s+software\s+engineer\s+bullets\s+with:\s*/i,
-    [/\n\s*6\.\s+fix\s+education/i, /\n\s*\d+\.\s+/i]
+    [/\n\s*6\.\s+fix\s+education/i, /\n\s*3\.\s+reduce\s+projects/i, /\n\s*\d+\.\s+/i]
+  ) || getInstructionBlock(
+    instruction,
+    /reduce\s+software\s+engineer[\s\S]*?keep\s+only\s+these:\s*/i,
+    [/\n\s*remove\s+these\s+two:/i, /\n\s*3\.\s+reduce\s+projects/i, /\n\s*\d+\.\s+/i]
   );
   const softwareEngineerBullets = getBulletLines(softwareEngineerBulletsBlock);
 
@@ -595,6 +615,53 @@ function applyDeterministicQuickEdit(
     );
 
     summaries.push(`Merged Data skills into ${targetGroup} and removed repeated skill entries.`);
+  }
+
+  const wantsProjectReduction =
+    (/reduce\s+projects/i.test(instruction) ||
+      /\bkeep\s+only\s+(?:these\s+)?(?:two\s+)?projects?\b/i.test(instruction)) &&
+    /ai\s+resume\s+editor/i.test(instruction) &&
+    /\bexpense\b/i.test(instruction);
+
+  if (wantsProjectReduction) {
+    const aiProj = nextResume.projects.find((p) => /ai\s+resume\s+editor/i.test(p.name));
+    const expenseProj = nextResume.projects.find((p) => /\bexpense\b/i.test(p.name));
+    const trimmed: ResumeData["projects"] = [];
+    if (aiProj) {
+      trimmed.push({ ...aiProj, bullets: [...aiProj.bullets] });
+    }
+    if (expenseProj) {
+      trimmed.push({ ...expenseProj, bullets: [...expenseProj.bullets] });
+    }
+    if (trimmed.length > 0) {
+      nextResume.projects = trimmed;
+      summaries.push("Reduced projects to AI Resume Editor and Expense Bot.");
+    }
+  }
+
+  const aiResumeBulletsBlock = getInstructionBlock(
+    instruction,
+    /replace\s+ai\s+resume\s+editor\s+bullets\s+with:\s*/i,
+    [/\n\s*reduce\s+projects/i, /\n\s*\d+\.\s+/i]
+  );
+  const aiResumeBulletsFromBlock = getBulletLines(aiResumeBulletsBlock).slice(0, 2);
+
+  const wantsAiResumeTwoBullets =
+    /\bshorten\s+ai\s+resume\s+editor\b[\s\S]{0,1200}?\b2\s+bullets\b/i.test(instruction) ||
+    /\bai\s+resume\s+editor\b[\s\S]{0,1200}?\b(?:only|exactly)\s+2\s+bullets\b/i.test(instruction);
+
+  if (wantsAiResumeTwoBullets || aiResumeBulletsFromBlock.length > 0) {
+    const aiIdx = nextResume.projects.findIndex((p) => /ai\s+resume\s+editor/i.test(p.name));
+    if (aiIdx >= 0) {
+      const nextBullets =
+        aiResumeBulletsFromBlock.length > 0
+          ? aiResumeBulletsFromBlock
+          : nextResume.projects[aiIdx].bullets.slice(0, 2);
+      nextResume.projects = nextResume.projects.map((p, i) =>
+        i === aiIdx ? { ...p, bullets: nextBullets } : p
+      );
+      summaries.push("Shortened AI Resume Editor to 2 bullets.");
+    }
   }
 
   return summaries.length > 0

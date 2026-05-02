@@ -45,7 +45,7 @@ export const sampleResume: ResumeData = {
   },
   languages: [
     { name: "English", level: "Fluent" },
-    { name: "German", level: "A2" },
+    { name: "German", level: "B1 learning" },
     { name: "Hindi", level: "Native" }
   ],
   education: [
