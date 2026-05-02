@@ -68,6 +68,7 @@ Rules:
 - Apply the user's requested wording exactly for factual labels like language levels.
 - If the user includes reasoning or critique, use it to decide the edit but do not insert that reasoning into the CV.
 - For skill cleanup, remove duplicates across groups and prefer one concise combined group over repeated sections.
+- If the user says "Replace X with:" and provides a block, preserve that block's intended content exactly.
 - Use **double asterisks** for bold ONLY when the user explicitly asks.
 - When reducing bullets: keep the most impactful/metric-heavy ones.
 - When removing an array item: return the FULL updated array with that item gone.`;

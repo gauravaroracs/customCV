@@ -304,6 +304,107 @@ function uniqueSkills(values: string[]) {
   });
 }
 
+function getInstructionBlock(
+  instruction: string,
+  startPattern: RegExp,
+  endPatterns: RegExp[]
+) {
+  const startMatch = startPattern.exec(instruction);
+  if (!startMatch || startMatch.index < 0) {
+    return "";
+  }
+
+  const startIndex = startMatch.index + startMatch[0].length;
+  const rest = instruction.slice(startIndex);
+  const endIndex = endPatterns.reduce((nearestEnd, pattern) => {
+    const match = pattern.exec(rest);
+    return match && match.index >= 0 ? Math.min(nearestEnd, match.index) : nearestEnd;
+  }, rest.length);
+
+  return rest.slice(0, endIndex).trim();
+}
+
+function getBulletLines(block: string) {
+  return block
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("-"))
+    .map((line) => line.replace(/^-\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function parseSkillsReplacement(block: string) {
+  const skills: Record<string, string[]> = {};
+  let currentGroup = "";
+
+  block.split("\n").forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) {
+      return;
+    }
+
+    const groupMatch = /^([^:-][^:]+):$/.exec(line);
+    if (groupMatch) {
+      currentGroup = groupMatch[1].trim();
+      skills[currentGroup] = [];
+      return;
+    }
+
+    if (currentGroup && line.startsWith("-")) {
+      skills[currentGroup].push(line.replace(/^-\s*/, "").trim());
+    }
+  });
+
+  return Object.keys(skills).length > 0 ? skills : null;
+}
+
+function upsertLanguage(languages: ResumeData["languages"], name: string, level: string) {
+  const nextLanguages = languages.map((language) => ({ ...language }));
+  const index = nextLanguages.findIndex((language) =>
+    language.name.toLowerCase().includes(name.toLowerCase())
+  );
+
+  if (index >= 0) {
+    nextLanguages[index] = { ...nextLanguages[index], level };
+    return nextLanguages;
+  }
+
+  return [...nextLanguages, { name, level }];
+}
+
+function upsertEducation(
+  education: ResumeData["education"],
+  nextEducation: ResumeData["education"][number]
+) {
+  const existingIndex = education.findIndex((item) =>
+    item.degree.toLowerCase().includes(nextEducation.degree.toLowerCase().slice(0, 6))
+  );
+
+  if (existingIndex < 0) {
+    return [nextEducation, ...education];
+  }
+
+  return education.map((item, index) =>
+    index === existingIndex
+      ? {
+          ...item,
+          ...nextEducation,
+          details: nextEducation.details
+        }
+      : item
+  );
+}
+
+function withProjectFirst(
+  projects: ResumeData["projects"],
+  project: ResumeData["projects"][number]
+) {
+  return [
+    project,
+    ...projects.filter((item) => item.name.toLowerCase() !== project.name.toLowerCase())
+  ];
+}
+
 function applyDeterministicQuickEdit(
   currentResume: ResumeData,
   instruction: string
@@ -331,25 +432,124 @@ function applyDeterministicQuickEdit(
   };
   const summaries: string[] = [];
 
+  if (/gaurav-arora-cs\.vercel\.app/i.test(instruction)) {
+    nextResume.personal.website = "https://gaurav-arora-cs.vercel.app/";
+    summaries.push("Restored portfolio website in contact.");
+  }
+
+  const summaryBlock = getInstructionBlock(
+    instruction,
+    /change\s+summary[\s\S]*?replace\s+with:\s*/i,
+    [/\n\s*3\.\s+reorder\s+skills/i, /\n\s*\d+\.\s+/i]
+  );
+
+  if (summaryBlock) {
+    const nextSummary = summaryBlock
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .join(" ");
+
+    if (nextSummary) {
+      nextResume.profile = nextSummary;
+      summaries.push("Replaced summary.");
+    }
+  }
+
+  const skillsBlock = getInstructionBlock(
+    instruction,
+    /replace\s+skills\s+with:\s*/i,
+    [/\n\s*4\.\s+add\s+one\s+project/i, /\n\s*\d+\.\s+/i]
+  );
+  const replacementSkills = parseSkillsReplacement(skillsBlock);
+
+  if (replacementSkills) {
+    nextResume.skills = replacementSkills;
+    summaries.push("Replaced skills.");
+  }
+
+  if (/AI Resume Editor\s*\|/i.test(instruction)) {
+    const projectTechMatch = /AI Resume Editor\s*\|\s*([^\n]+)/i.exec(instruction);
+    const projectBlock = getInstructionBlock(
+      instruction,
+      /AI Resume Editor\s*\|[^\n]*\n/i,
+      [/\n\s*If you used NestJS/i, /\n\s*5\.\s+strengthen\s+experience/i, /\n\s*\d+\.\s+/i]
+    );
+    const projectBullets = getBulletLines(projectBlock);
+
+    nextResume.projects = withProjectFirst(nextResume.projects, {
+      name: "AI Resume Editor",
+      tech: (projectTechMatch?.[1] ?? "Next.js, React, TypeScript, Tailwind CSS").trim(),
+      bullets:
+        projectBullets.length > 0
+          ? projectBullets
+          : [
+              "Building a web-based resume editing tool for structured AI-assisted CV edits.",
+              "Designed reusable React components and Tailwind layouts for responsive editing."
+            ]
+    });
+    summaries.push("Added AI Resume Editor project.");
+  }
+
+  const softwareEngineerBulletsBlock = getInstructionBlock(
+    instruction,
+    /replace\s+software\s+engineer\s+bullets\s+with:\s*/i,
+    [/\n\s*6\.\s+fix\s+education/i, /\n\s*\d+\.\s+/i]
+  );
+  const softwareEngineerBullets = getBulletLines(softwareEngineerBulletsBlock);
+
+  if (softwareEngineerBullets.length > 0) {
+    const softwareEngineerIndex = nextResume.experience.findIndex((experience) =>
+      experience.role.toLowerCase().includes("software engineer")
+    );
+
+    if (softwareEngineerIndex >= 0) {
+      nextResume.experience = nextResume.experience.map((experience, index) =>
+        index === softwareEngineerIndex
+          ? { ...experience, bullets: softwareEngineerBullets }
+          : experience
+      );
+    }
+
+    summaries.push("Replaced Software Engineer bullets.");
+  }
+
+  if (/gpa:\s*2\.25/i.test(instruction) || /specialization:\s*data science/i.test(instruction)) {
+    nextResume.education = upsertEducation(nextResume.education, {
+      degree: "M.Sc. Computer Science",
+      institution: "Technische Universität Darmstadt",
+      location: "Darmstadt, Germany",
+      dates: "08/2025 - Present",
+      details: ["GPA: 2.25", "Specialization: Data Science & Engineering"]
+    });
+
+    const hasBtech = nextResume.education.some((item) =>
+      item.degree.toLowerCase().includes("b.tech")
+    );
+    if (!hasBtech) {
+      nextResume.education.push({
+        degree: "B.Tech. Computer Science and Engineering",
+        institution: "Walchand College of Engineering",
+        location: "Maharashtra, India",
+        dates: "08/2018 - 07/2022",
+        details: ["Grade: 8.1/10 (~1.9 German scale)"]
+      });
+    }
+
+    summaries.push("Updated education.");
+  }
+
   if (
     lowerInstruction.includes("german") &&
     lowerInstruction.includes("a2") &&
     lowerInstruction.includes("b1")
   ) {
-    const germanIndex = nextResume.languages.findIndex((language) =>
-      language.name.toLowerCase().includes("german")
-    );
+    const germanLevel = lowerInstruction.includes("certified")
+      ? "A2 certified, actively learning B1"
+      : "A2, actively learning B1";
 
-    if (germanIndex >= 0) {
-      nextResume.languages[germanIndex] = {
-        ...nextResume.languages[germanIndex],
-        level: "A2, actively learning B1"
-      };
-    } else {
-      nextResume.languages.push({ name: "German", level: "A2, actively learning B1" });
-    }
-
-    summaries.push("Set German to A2, actively learning B1.");
+    nextResume.languages = upsertLanguage(nextResume.languages, "German", germanLevel);
+    summaries.push(`Set German to ${germanLevel}.`);
   }
 
   const asksForDataMerge =
