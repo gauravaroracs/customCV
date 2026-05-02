@@ -94,7 +94,9 @@ export type TailorResponse = {
 };
 
 export type RecentApplication = JobMetadata & {
+  id: number;
   timestamp: string;
   tailoredCV: ResumeData;
+  matchScore: number;
   jdSnapshot: string;
 };

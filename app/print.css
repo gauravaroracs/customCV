@@ -4,15 +4,20 @@
     print-color-adjust: exact;
   }
 
-  body > * {
+  .no-print {
     display: none !important;
   }
 
-  body > *:has(#cv-preview) {
+  /* ── Normal styled PDF (default mode) ─────────────────────────── */
+  body:not([data-ats-print]) > * {
+    display: none !important;
+  }
+
+  body:not([data-ats-print]) > *:has(#cv-preview) {
     display: block !important;
   }
 
-  #cv-preview {
+  body:not([data-ats-print]) #cv-preview {
     display: block !important;
     position: fixed !important;
     top: 0;
@@ -22,15 +27,43 @@
     padding: 0;
     box-shadow: none;
     border: none;
+    border-radius: 0 !important;
     page-break-after: avoid;
   }
 
-  .no-print {
+  body:not([data-ats-print]) #ats-preview {
     display: none !important;
   }
 
   @page {
     size: A4 portrait;
     margin: 0;
+  }
+
+  /* ── ATS mode (body[data-ats-print] set by JS) ─────────────────── */
+  body[data-ats-print] * {
+    color: #000 !important;
+    background: none !important;
+    box-shadow: none !important;
+    visibility: hidden !important;
+  }
+
+  body[data-ats-print] #ats-preview {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 11px !important;
+    line-height: 1.5 !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    visibility: visible !important;
+  }
+
+  body[data-ats-print] #ats-preview * {
+    visibility: visible !important;
   }
 }

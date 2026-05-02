@@ -1,12 +1,12 @@
 "use client";
 
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { MasterCvModal } from "@/components/MasterCvModal";
 import { QuickApplyPanel } from "@/components/QuickApplyPanel";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
-import { generateATSText, getATSFilename } from "@/lib/cvText";
+import { generateATSText, generateATSHtml, getATSPdfFilename } from "@/lib/cvText";
 import { sampleResume } from "@/sampleResume";
 import {
   JobMetadata,
@@ -16,13 +16,32 @@ import {
   TailorResponse
 } from "@/types/resume";
 
-const LEGACY_STORAGE_KEY = "cvpilot-resume";
-const WORKING_CV_STORAGE_KEY = "cvpilot-working-cv";
-const MASTER_CV_STORAGE_KEY = "masterCV";
-const VERSION_STORAGE_KEY = "cvpilot-version";
-const RECENT_APPS_STORAGE_KEY = "recentApps";
-const FONT_SIZE_STORAGE_KEY = "cvFontSize";
-const FONT_WEIGHT_STORAGE_KEY = "cvFontWeight";
+// ── Legacy localStorage keys used only for one-time migration fallback ──────
+const LEGACY_STORAGE_KEY        = "cvpilot-resume";
+const WORKING_CV_STORAGE_KEY    = "cvPilot_workingCV";
+const MASTER_CV_STORAGE_KEY     = "cvPilot_masterCV";
+const VERSION_STORAGE_KEY       = "cvpilot-version";
+const RECENT_APPS_STORAGE_KEY   = "cvPilot_recent";
+const FONT_SIZE_STORAGE_KEY     = "cvPilot_fontSize";
+const FONT_WEIGHT_STORAGE_KEY   = "cvFontWeight";
+const PHOTO_STORAGE_KEY         = "cvPilot_photo";
+const ATS_PRINT_STYLE_ID        = "cvpilot-ats-print-style";
+
+type CvPilotSettings = {
+  selectedVersion?: string;
+  cvFontSize?: string;
+  cvFontWeight?: string;
+  cvTopMargin?: string;
+  cvBottomMargin?: string;
+};
+
+type CvPilotStorageSnapshot = {
+  masterCV?: unknown;
+  workingCV?: unknown;
+  recentApplications?: unknown[];
+  settings?: CvPilotSettings;
+  photo?: string;
+};
 
 const versions = ["Java Backend Heavy", "General Tech", "Germany Targeted"];
 
@@ -94,6 +113,32 @@ function downloadTextFile(content: string, filename: string, type: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+async function readRepoStorage(): Promise<CvPilotStorageSnapshot> {
+  const response = await fetch("/api/cvpilot-storage", {
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not read repo-backed CVPilot storage.");
+  }
+
+  return response.json() as Promise<CvPilotStorageSnapshot>;
+}
+
+async function patchRepoStorage(payload: CvPilotStorageSnapshot) {
+  const response = await fetch("/api/cvpilot-storage", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not write repo-backed CVPilot storage.");
+  }
 }
 
 function toStringArray(value: unknown) {
@@ -221,11 +266,49 @@ function normalizeResumeInput(value: unknown): ResumeData {
   };
 }
 
+function withStoredPhoto(cv: ResumeData, storedPhoto: string | null) {
+  return {
+    ...cv,
+    personal: {
+      ...cv.personal,
+      photoUrl: storedPhoto ?? cv.personal.photoUrl
+    }
+  };
+}
+
+function normalizeRecentApplications(value: unknown): RecentApplication[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const source = item && typeof item === "object" ? item as Record<string, unknown> : null;
+      if (!source || !source.tailoredCV) {
+        return null;
+      }
+
+      return {
+        id: typeof source.id === "number" ? source.id : Date.now(),
+        company: typeof source.company === "string" ? source.company : "",
+        role: typeof source.role === "string" ? source.role : "",
+        location: typeof source.location === "string" ? source.location : "",
+        timestamp: typeof source.timestamp === "string" ? source.timestamp : new Date().toISOString(),
+        tailoredCV: normalizeResumeInput(source.tailoredCV),
+        matchScore: typeof source.matchScore === "number" ? source.matchScore : 0,
+        jdSnapshot: typeof source.jdSnapshot === "string" ? source.jdSnapshot.slice(0, 500) : ""
+      };
+    })
+    .filter((item): item is RecentApplication => Boolean(item))
+    .slice(0, 10);
+}
+
 export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const generateShortcutRef = useRef<(() => void) | null>(null);
   const copyShortcutRef = useRef<(() => Promise<void>) | null>(null);
   const downloadPdfRef = useRef<(() => void) | null>(null);
+  const storedPhotoRef = useRef("");
   const [importTarget, setImportTarget] = useState<"working" | "master">("working");
   const [resume, setResume] = useState<ResumeData>(sampleResume);
   const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
@@ -240,6 +323,7 @@ export default function HomePage() {
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
+  const [hasStoredMasterCV, setHasStoredMasterCV] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [cvFontSize, setCvFontSize] = useState("9.5px");
@@ -254,103 +338,169 @@ export default function HomePage() {
   const [isSaveSuccess, setIsSaveSuccess] = useState(false);
 
   useEffect(() => {
-    const storedMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY);
-    const storedWorking =
-      window.localStorage.getItem(WORKING_CV_STORAGE_KEY) ??
-      window.localStorage.getItem(LEGACY_STORAGE_KEY);
-    const storedVersion = window.localStorage.getItem(VERSION_STORAGE_KEY);
-    const storedRecentApps = window.localStorage.getItem(RECENT_APPS_STORAGE_KEY);
+    let isMounted = true;
 
-    if (storedMaster) {
+    const loadStoredState = async () => {
       try {
-        const parsedMaster = normalizeResumeInput(JSON.parse(storedMaster));
-        setMasterCV(parsedMaster);
+        const repoStorage = await readRepoStorage();
+        const legacyStoredMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY)
+          ?? window.localStorage.getItem("masterCV");
+        const legacyStoredWorking =
+          window.localStorage.getItem(WORKING_CV_STORAGE_KEY) ??
+          window.localStorage.getItem("cvpilot-working-cv") ??
+          window.localStorage.getItem(LEGACY_STORAGE_KEY);
+        const legacyStoredRecentApps =
+          window.localStorage.getItem(RECENT_APPS_STORAGE_KEY) ??
+          window.localStorage.getItem("recentApps");
+        const legacyPhoto =
+          window.localStorage.getItem(PHOTO_STORAGE_KEY) ??
+          window.localStorage.getItem("cvPhoto") ??
+          "";
 
-        let initialResume = parsedMaster;
-        if (storedWorking) {
-          initialResume = normalizeResumeInput(JSON.parse(storedWorking));
+        const storedPhoto = repoStorage.photo || legacyPhoto;
+        storedPhotoRef.current = storedPhoto;
+
+        const repoMaster = repoStorage.masterCV || null;
+        const repoWorking = repoStorage.workingCV || null;
+        const repoRecent = Array.isArray(repoStorage.recentApplications)
+          ? repoStorage.recentApplications
+          : null;
+
+        let nextMaster: ResumeData | null = null;
+        let nextResume: ResumeData | null = null;
+        let didMigrate = false;
+
+        if (repoMaster) {
+          nextMaster = withStoredPhoto(normalizeResumeInput(repoMaster), storedPhoto);
+        } else if (legacyStoredMaster) {
+          nextMaster = withStoredPhoto(normalizeResumeInput(JSON.parse(legacyStoredMaster)), storedPhoto);
+          didMigrate = true;
         }
-        
-        const savedPhoto = window.localStorage.getItem('cvPhoto');
-        if (savedPhoto) {
-          initialResume.personal.photoUrl = savedPhoto;
+
+        if (repoWorking) {
+          nextResume = withStoredPhoto(normalizeResumeInput(repoWorking), storedPhoto);
+        } else if (legacyStoredWorking) {
+          nextResume = withStoredPhoto(normalizeResumeInput(JSON.parse(legacyStoredWorking)), storedPhoto);
+          didMigrate = true;
+        } else if (nextMaster) {
+          nextResume = nextMaster;
+        } else if (storedPhoto) {
+          nextResume = withStoredPhoto(sampleResume, storedPhoto);
+          didMigrate = true;
         }
-        setResume(initialResume);
-      } catch {
-        window.localStorage.removeItem(MASTER_CV_STORAGE_KEY);
+
+        const repoSettings = repoStorage.settings ?? {};
+        const legacyStoredVersion = window.localStorage.getItem(VERSION_STORAGE_KEY);
+        const legacyStoredFontSize =
+          window.localStorage.getItem(FONT_SIZE_STORAGE_KEY) ??
+          window.localStorage.getItem("cvFontSize");
+        const legacyStoredFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY);
+        const legacyStoredPageMargin = window.localStorage.getItem("cvPageMargin");
+        const legacyStoredTopMargin = window.localStorage.getItem("cvTopMargin");
+        const legacyStoredBottomMargin = window.localStorage.getItem("cvBottomMargin");
+
+        const nextSelectedVersion =
+          repoSettings.selectedVersion ??
+          (legacyStoredVersion && versions.includes(legacyStoredVersion) ? legacyStoredVersion : undefined);
+        const nextFontSize = repoSettings.cvFontSize ?? legacyStoredFontSize ?? undefined;
+        const nextFontWeight = repoSettings.cvFontWeight ?? legacyStoredFontWeight ?? undefined;
+        const nextTopMargin =
+          repoSettings.cvTopMargin ?? legacyStoredTopMargin ?? legacyStoredPageMargin ?? undefined;
+        const nextBottomMargin =
+          repoSettings.cvBottomMargin ?? legacyStoredBottomMargin ?? legacyStoredPageMargin ?? undefined;
+
+        const nextRecentApplications = repoRecent
+          ? normalizeRecentApplications(repoRecent)
+          : legacyStoredRecentApps
+            ? normalizeRecentApplications(JSON.parse(legacyStoredRecentApps))
+            : [];
+
+        if (legacyStoredRecentApps && !repoRecent) {
+          didMigrate = true;
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        if (nextMaster) {
+          setMasterCV(nextMaster);
+          setHasStoredMasterCV(true);
+        } else {
+          setMasterModalMode("setup");
+          setShowMasterModal(true);
+        }
+
+        if (nextResume) {
+          setResume(nextResume);
+        }
+
+        if (nextSelectedVersion && versions.includes(nextSelectedVersion)) {
+          setSelectedVersion(nextSelectedVersion);
+        }
+
+        if (nextFontSize) {
+          setCvFontSize(nextFontSize);
+        }
+
+        if (nextFontWeight) {
+          setCvFontWeight(nextFontWeight);
+        }
+
+        if (nextTopMargin) {
+          setCvTopMargin(nextTopMargin);
+        }
+
+        if (nextBottomMargin) {
+          setCvBottomMargin(nextBottomMargin);
+        }
+
+        setRecentApplications(nextRecentApplications);
+        setIsHydrated(true);
+
+        if (didMigrate || (storedPhoto && !repoStorage.photo)) {
+          void patchRepoStorage({
+            masterCV: nextMaster,
+            workingCV: nextResume,
+            recentApplications: nextRecentApplications,
+            photo: storedPhoto,
+            settings: {
+              selectedVersion: nextSelectedVersion,
+              cvFontSize: nextFontSize,
+              cvFontWeight: nextFontWeight,
+              cvTopMargin: nextTopMargin,
+              cvBottomMargin: nextBottomMargin
+            }
+          });
+        }
+      } catch (storageError) {
+        if (!isMounted) {
+          return;
+        }
+
+        setError(storageError instanceof Error ? storageError.message : "Could not load saved CVPilot data.");
         setMasterModalMode("setup");
         setShowMasterModal(true);
+        setIsHydrated(true);
       }
-    } else {
-      if (storedWorking) {
-        try {
-          const initialResume = normalizeResumeInput(JSON.parse(storedWorking));
-          const savedPhoto = window.localStorage.getItem('cvPhoto');
-          if (savedPhoto) {
-            initialResume.personal.photoUrl = savedPhoto;
-          }
-          setResume(initialResume);
-        } catch {
-          window.localStorage.removeItem(WORKING_CV_STORAGE_KEY);
-          window.localStorage.removeItem(LEGACY_STORAGE_KEY);
-        }
-      }
+    };
 
-      setMasterModalMode("setup");
-      setShowMasterModal(true);
-    }
+    void loadStoredState();
 
-    if (storedVersion && versions.includes(storedVersion)) {
-      setSelectedVersion(storedVersion);
-    }
-
-    const storedFontSize = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY);
-    if (storedFontSize) {
-      setCvFontSize(storedFontSize);
-    }
-
-    const storedFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY);
-    if (storedFontWeight) {
-      setCvFontWeight(storedFontWeight);
-    }
-
-    const storedPageMargin = window.localStorage.getItem("cvPageMargin");
-    if (storedPageMargin) {
-      setCvTopMargin(storedPageMargin);
-      setCvBottomMargin(storedPageMargin);
-    }
-
-    const storedTopMargin = window.localStorage.getItem("cvTopMargin");
-    if (storedTopMargin) {
-      setCvTopMargin(storedTopMargin);
-    }
-
-    const storedBottomMargin = window.localStorage.getItem("cvBottomMargin");
-    if (storedBottomMargin) {
-      setCvBottomMargin(storedBottomMargin);
-    }
-
-    if (storedRecentApps) {
-      try {
-        setRecentApplications(JSON.parse(storedRecentApps) as RecentApplication[]);
-      } catch {
-        window.localStorage.removeItem(RECENT_APPS_STORAGE_KEY);
-      }
-    }
-
-    setIsHydrated(true);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
+  // Debounced auto-save of working CV (500 ms)
   useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    try {
-      window.localStorage.setItem(WORKING_CV_STORAGE_KEY, JSON.stringify(resume));
-    } catch {
-      setError("The working CV could not be saved in browser storage. Try a smaller photo.");
-    }
+    if (!isHydrated) return;
+    const timer = setTimeout(() => {
+      void patchRepoStorage({ workingCV: resume }).catch((saveError) => {
+        setError(saveError instanceof Error ? saveError.message : "The working CV could not be saved.");
+      });
+    }, 500);
+    return () => clearTimeout(timer);
   }, [isHydrated, resume]);
 
   useEffect(() => {
@@ -358,7 +508,9 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem(VERSION_STORAGE_KEY, selectedVersion);
+    void patchRepoStorage({ settings: { selectedVersion } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The version preference could not be saved.");
+    });
   }, [isHydrated, selectedVersion]);
 
   useEffect(() => {
@@ -366,7 +518,9 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, cvFontSize);
+    void patchRepoStorage({ settings: { cvFontSize } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The font size preference could not be saved.");
+    });
   }, [cvFontSize, isHydrated]);
 
   useEffect(() => {
@@ -374,7 +528,9 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem(FONT_WEIGHT_STORAGE_KEY, cvFontWeight);
+    void patchRepoStorage({ settings: { cvFontWeight } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The font weight preference could not be saved.");
+    });
   }, [cvFontWeight, isHydrated]);
 
   useEffect(() => {
@@ -382,7 +538,9 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem("cvTopMargin", cvTopMargin);
+    void patchRepoStorage({ settings: { cvTopMargin } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The top margin preference could not be saved.");
+    });
   }, [cvTopMargin, isHydrated]);
 
   useEffect(() => {
@@ -390,7 +548,9 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem("cvBottomMargin", cvBottomMargin);
+    void patchRepoStorage({ settings: { cvBottomMargin } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The bottom margin preference could not be saved.");
+    });
   }, [cvBottomMargin, isHydrated]);
 
   useEffect(() => {
@@ -407,16 +567,26 @@ export default function HomePage() {
       return;
     }
 
-    window.localStorage.setItem(RECENT_APPS_STORAGE_KEY, JSON.stringify(recentApplications));
+    void patchRepoStorage({ recentApplications }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "Recent applications could not be saved.");
+    });
   }, [isHydrated, recentApplications]);
 
-  const persistMasterCV = (nextMasterCV: ResumeData) => {
+  const persistMasterCV = async (nextMasterCV: ResumeData) => {
     setMasterCV(nextMasterCV);
     setResume(nextMasterCV);
-    window.localStorage.setItem(MASTER_CV_STORAGE_KEY, JSON.stringify(nextMasterCV));
-    window.localStorage.setItem(WORKING_CV_STORAGE_KEY, JSON.stringify(nextMasterCV));
+    try {
+      await patchRepoStorage({
+        masterCV: nextMasterCV,
+        workingCV: nextMasterCV
+      });
+      setHasStoredMasterCV(true);
+      setError(null);
+    } catch {
+      setHasStoredMasterCV(false);
+      setError("The master CV could not be saved in repo storage.");
+    }
     setResult(null);
-    setError(null);
     setMasterModalMode("update");
     setShowMasterModal(false);
   };
@@ -451,7 +621,7 @@ export default function HomePage() {
       const parsed = normalizeResumeInput(JSON.parse(text));
 
       if (importTarget === "master") {
-        persistMasterCV(parsed);
+        await persistMasterCV(parsed);
       } else {
         setResume(parsed);
         setResult(null);
@@ -538,7 +708,8 @@ export default function HomePage() {
       }
 
       const tailored = parsed.tailoredCV;
-      tailored.personal.photoUrl = resume.personal.photoUrl;
+      // Re-inject persisted photo so it survives the API round-trip.
+      tailored.personal.photoUrl = storedPhotoRef.current || "";
 
       setResume(tailored);
       setResult(parsed);
@@ -546,15 +717,17 @@ export default function HomePage() {
 
       setRecentApplications((current) => {
         const nextItem: RecentApplication = {
+          id: Date.now(),
           company: jobMetadata.company,
           role: jobMetadata.role,
           location: jobMetadata.location,
           timestamp: new Date().toISOString(),
           tailoredCV: parsed.tailoredCV,
-          jdSnapshot: jobDescription
+          matchScore: parsed.matchScore ?? 0,
+          jdSnapshot: jobDescription.slice(0, 500)
         };
 
-        return [nextItem, ...current].slice(0, 5);
+        return [nextItem, ...current].slice(0, 10);
       });
     } catch (requestError) {
       setResult(null);
@@ -582,11 +755,6 @@ export default function HomePage() {
     setResult(null);
     setActiveResultTab("preview");
     setError(null);
-  };
-
-  const handleDownloadATS = () => {
-    const text = generateATSText(resume);
-    downloadTextFile(text, getATSFilename(resume, jobMetadata), "text/plain;charset=utf-8");
   };
 
   const downloadPDF = () => {
@@ -712,14 +880,16 @@ export default function HomePage() {
 
   const handleSaveApplication = () => {
     const newEntry: RecentApplication = {
+      id: Date.now(),
       company: jobMetadata.company || "Unknown company",
       role: jobMetadata.role || "Untitled role",
       location: jobMetadata.location || "",
       timestamp: new Date().toISOString(),
       tailoredCV: resume,
-      jdSnapshot: jobDescription
+      matchScore: result?.matchScore ?? 0,
+      jdSnapshot: jobDescription.slice(0, 500)
     };
-    setRecentApplications((current) => [newEntry, ...current].slice(0, 5));
+    setRecentApplications((current) => [newEntry, ...current].slice(0, 10));
     setIsSaveSuccess(true);
     setTimeout(() => setIsSaveSuccess(false), 3000);
   };
@@ -727,6 +897,7 @@ export default function HomePage() {
   const handlePhotoUpload = async (file: File) => {
     try {
       const photoUrl = await compressProfilePhoto(file);
+      storedPhotoRef.current = photoUrl;
       setResume((currentResume) => ({
         ...currentResume,
         personal: {
@@ -734,7 +905,7 @@ export default function HomePage() {
           photoUrl
         }
       }));
-      window.localStorage.setItem('cvPhoto', photoUrl);
+      await patchRepoStorage({ photo: photoUrl });
       setResult(null);
       setError(null);
     } catch (uploadError) {
@@ -747,6 +918,7 @@ export default function HomePage() {
   };
 
   const handlePhotoRemove = () => {
+    storedPhotoRef.current = "";
     setResume((currentResume) => ({
       ...currentResume,
       personal: {
@@ -754,18 +926,89 @@ export default function HomePage() {
         photoUrl: ""
       }
     }));
-    window.localStorage.removeItem('cvPhoto');
+    void patchRepoStorage({ photo: "" }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The photo could not be removed from repo storage.");
+    });
     setResult(null);
     setError(null);
   };
 
+  // ── ATS Print-PDF download ───────────────────────────────────────────────
+  const handleDownloadATSPdf = useCallback(() => {
+    const originalTitle = document.title;
+    const atsPreview = document.getElementById("ats-preview");
+    const cvPreview = document.getElementById("cv-preview");
+    const originalAtsDisplay = atsPreview?.style.display ?? "";
+    const originalCvDisplay = cvPreview?.style.display ?? "";
+    const styleElement = document.createElement("style");
+    let restored = false;
+
+    document.title = getATSPdfFilename(resume, jobMetadata);
+    styleElement.id = ATS_PRINT_STYLE_ID;
+    styleElement.textContent = `
+@media print {
+  @page { size: A4; margin: 15mm 15mm 15mm 15mm; }
+  body { font-family: Arial, sans-serif; color: #000; }
+  * { color: #000 !important; background: none !important; }
+}
+`;
+
+    document.getElementById(ATS_PRINT_STYLE_ID)?.remove();
+    document.head.appendChild(styleElement);
+
+    if (atsPreview) {
+      atsPreview.style.display = "block";
+    }
+
+    if (cvPreview) {
+      cvPreview.style.display = "none";
+    }
+
+    document.body.setAttribute("data-ats-print", "1");
+
+    const restore = () => {
+      if (restored) {
+        return;
+      }
+
+      restored = true;
+      document.body.removeAttribute("data-ats-print");
+      styleElement.remove();
+
+      if (atsPreview) {
+        atsPreview.style.display = originalAtsDisplay;
+      }
+
+      if (cvPreview) {
+        cvPreview.style.display = originalCvDisplay;
+      }
+
+      document.title = originalTitle;
+      window.removeEventListener("afterprint", restore);
+    };
+
+    window.addEventListener("afterprint", restore, { once: true });
+    window.print();
+    window.setTimeout(restore, 0);
+  }, [resume, jobMetadata]);
+
+  // Build the ATS HTML whenever resume changes
+  const atsHtml = generateATSHtml(resume);
+
   return (
     <div className="min-h-screen bg-canvas">
+      {/* Hidden ATS preview div — shown only during print */}
+      <div
+        id="ats-preview"
+        style={{ display: "none" }}
+        dangerouslySetInnerHTML={{ __html: atsHtml }}
+      />
+
       <Toolbar
         selectedVersion={selectedVersion}
         versions={versions}
         disabled={isLoading}
-        masterCvName={masterCV?.personal.name || resume.personal.name || "Not set"}
+        masterCvName={hasStoredMasterCV && masterCV ? (masterCV.personal.name || "Set") : null}
         recentApplications={recentApplications}
         cvFontSize={cvFontSize}
         cvFontWeight={cvFontWeight}
@@ -778,8 +1021,6 @@ export default function HomePage() {
         onBottomMarginChange={setCvBottomMargin}
         onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
-        onPrintClick={downloadPDF}
-        onDownloadATS={handleDownloadATS}
         onCopyPlainText={handleCopyPlainText}
         onResetClick={handleResetToMaster}
         onUpdateMaster={handleUpdateMaster}
@@ -790,7 +1031,7 @@ export default function HomePage() {
         isOpen={showMasterModal}
         mode={masterModalMode}
         onImportClick={() => handleImportClick("master")}
-        onUseCurrent={() => persistMasterCV(resume)}
+        onUseCurrent={() => { void persistMasterCV(resume); }}
         onClose={() => setShowMasterModal(false)}
       />
 
@@ -849,33 +1090,48 @@ export default function HomePage() {
                 : "Fits within exact A4 height"}
             </div>
           </div>
-          <div className="no-print mt-4 flex flex-wrap justify-center gap-3">
+          <div className="no-print mt-4 flex flex-wrap items-start justify-center gap-3">
             <div className="group relative">
               <button
                 type="button"
                 onClick={downloadPDF}
                 disabled={isLoading}
-                className="rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg bg-slate-900 px-5 py-4 text-left text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                ⬇ Download PDF
+                <span className="text-sm font-bold">⬇ Download PDF</span>
+                <span className="mt-1 text-xs font-semibold text-slate-200">For emailing</span>
+                <span className="mt-0.5 text-xs text-slate-300">Two-column, photo</span>
               </button>
               <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
-                When the print dialog opens: set Destination to &quot;Save as PDF&quot;, Margins to &quot;None&quot;, and check &quot;Background graphics&quot;
+                Best for emailing recruiters directly. Looks professional, includes photo.
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleDownloadATS}
-              disabled={isLoading}
-              className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              ⬇ Download ATS .txt
-            </button>
+
+            <div className="group relative">
+              <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800 ring-1 ring-amber-300">
+                Recommended for portals
+              </span>
+              <button
+                type="button"
+                onClick={handleDownloadATSPdf}
+                disabled={isLoading}
+                className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-left text-amber-950 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="text-sm font-bold">⬇ Download ATS</span>
+                <span className="mt-1 text-xs font-semibold text-amber-900">For job portals</span>
+                <span className="mt-0.5 text-xs text-amber-800">Single-col, no photo</span>
+              </button>
+              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
+                Best for uploading to Workday, Greenhouse, Lever, SAP. Plain layout, no photo, maximum parser compatibility.
+              </div>
+            </div>
+
+            {/* ── Copy plain text ── */}
             <button
               type="button"
               onClick={() => void handleCopyPlainText()}
               disabled={isLoading}
-              className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               ⧉ Copy plain text
             </button>

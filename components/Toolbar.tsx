@@ -10,7 +10,7 @@ type ToolbarProps = {
   cvTopMargin: string;
   cvBottomMargin: string;
   disabled?: boolean;
-  masterCvName: string;
+  masterCvName: string | null;  // null = no master CV set yet
   recentApplications: RecentApplication[];
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
@@ -19,13 +19,22 @@ type ToolbarProps = {
   onBottomMarginChange: (value: string) => void;
   onImportClick: () => void;
   onExportClick: () => void;
-  onPrintClick: () => void;
-  onDownloadATS: () => void;
   onCopyPlainText: () => void;
   onResetClick: () => void;
   onUpdateMaster: () => void;
   onSelectRecent: (timestamp: string) => void;
 };
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins  = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days  = Math.floor(diff / 86_400_000);
+  if (mins  < 1)    return "just now";
+  if (mins  < 60)   return `${mins}m ago`;
+  if (hours < 24)   return `${hours}h ago`;
+  return `${days}d ago`;
+}
 
 export function Toolbar({
   selectedVersion,
@@ -44,8 +53,6 @@ export function Toolbar({
   onBottomMarginChange,
   onImportClick,
   onExportClick,
-  onPrintClick,
-  onDownloadATS,
   onCopyPlainText,
   onResetClick,
   onUpdateMaster,
@@ -62,6 +69,8 @@ export function Toolbar({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* Show pill only when a master CV has been set */}
+          {masterCvName && (
           <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 shadow-sm">
             <span className="font-medium">Master CV: {masterCvName} ✓</span>
             <button
@@ -73,6 +82,7 @@ export function Toolbar({
               Update
             </button>
           </div>
+          )}
 
           <details className={`relative ${disabled ? "pointer-events-none opacity-60" : ""}`}>
             <summary className="list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300">
@@ -89,11 +99,10 @@ export function Toolbar({
                       className="w-full rounded-2xl bg-slate-50 px-3 py-3 text-left text-sm text-slate-700 transition hover:bg-slate-100"
                     >
                       <div className="font-semibold text-slate-900">
-                        {item.company || "Unknown company"} · {item.role || "Untitled role"}
+                        {item.company || "Unknown"} · {item.matchScore ? `${item.matchScore}%` : "—"} · {relativeTime(item.timestamp)}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {item.location || "Location not set"} ·{" "}
-                        {new Date(item.timestamp).toLocaleString()}
+                      <div className="mt-0.5 text-xs text-slate-500 truncate">
+                        {item.role || "Untitled role"}
                       </div>
                     </button>
                   ))}
@@ -163,14 +172,6 @@ export function Toolbar({
           >
             Reset to Master
           </button>
-          <button
-            type="button"
-            onClick={onPrintClick}
-            disabled={disabled}
-            className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            Download PDF
-          </button>
           <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
             <span className="font-medium text-slate-500">Font size: {cvFontSize}</span>
             <select
@@ -234,14 +235,6 @@ export function Toolbar({
               <option value="40px">40px</option>
             </select>
           </label>
-          <button
-            type="button"
-            onClick={onDownloadATS}
-            disabled={disabled}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            ATS .txt
-          </button>
           <button
             type="button"
             onClick={onCopyPlainText}
