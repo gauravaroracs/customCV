@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { JobMetadata, TailorResponse } from "@/types/resume";
+import type { CvEditProposal, JobMetadata, ProposeEditsResponse, TailorResponse } from "@/types/resume";
 
 const loadingMessages = [
   "Reading job description...",
@@ -9,6 +9,34 @@ const loadingMessages = [
   "Rewriting bullets...",
   "Almost done..."
 ];
+
+const suggestLoadingMessages = [
+  "Reading your CV against the JD...",
+  "Spotting gaps and wins...",
+  "Drafting discrete edit proposals...",
+  "Almost ready to review..."
+];
+
+function previewProposalPatch(proposal: CvEditProposal): string {
+  switch (proposal.patchType) {
+    case "profile":
+      return proposal.profileText.trim() || "(empty)";
+    case "skills":
+      return proposal.skillGroups
+        .map((group) => `${group.groupName}:\n${group.items.map((item) => `- ${item}`).join("\n")}`)
+        .join("\n\n");
+    case "experience_bullets":
+      return [`Role/company contains: "${proposal.experienceRoleHint}"`, ...proposal.experienceBullets.map((b) => `- ${b}`)].join("\n");
+    case "projects_list":
+      return proposal.projectItems
+        .map((project) => `${project.name} | ${project.tech}\n${project.bullets.map((b) => `- ${b}`).join("\n")}`)
+        .join("\n\n");
+    case "languages":
+      return proposal.languageItems.map((language) => `${language.name}: ${language.level}`).join("\n");
+    default:
+      return "";
+  }
+}
 
 function getScoreColor(score: number) {
   if (score >= 80) return "#1D9E75";
@@ -26,18 +54,25 @@ type QuickApplyPanelProps = {
   jobDescription: string;
   metadata: JobMetadata;
   result: TailorResponse | null;
+  proposeEditsResult: ProposeEditsResponse | null;
   error: string | null;
   isLoading: boolean;
+  isSuggestLoading: boolean;
   isEditLoading: boolean;
   isRescoring: boolean;
   isSaveSuccess: boolean;
   editSuccess: string | null;
+  proposalApplySuccess: string | null;
+  usesWorkingCvAsSuggestBase: boolean;
   disabled: boolean;
   activeTab: "preview" | "changes";
   onJobDescriptionChange: (value: string) => void;
   onJobDescriptionPaste: (value: string) => void;
   onMetadataChange: (key: keyof JobMetadata, value: string) => void;
   onGenerate: () => void;
+  onSuggestEdits: (userNotes: string) => void;
+  onDismissProposals: () => void;
+  onApplySelectedProposals: (proposalIds: string[]) => void;
   onTabChange: (tab: "preview" | "changes") => void;
   onApplyEdit: (instruction: string) => void;
   onRescore: () => void;
@@ -48,26 +83,36 @@ export function QuickApplyPanel({
   jobDescription,
   metadata,
   result,
+  proposeEditsResult,
   error,
   isLoading,
+  isSuggestLoading,
   isEditLoading,
   isRescoring,
   isSaveSuccess,
   editSuccess,
+  proposalApplySuccess,
+  usesWorkingCvAsSuggestBase,
   disabled,
   activeTab,
   onJobDescriptionChange,
   onJobDescriptionPaste,
   onMetadataChange,
   onGenerate,
+  onSuggestEdits,
+  onDismissProposals,
+  onApplySelectedProposals,
   onTabChange,
   onApplyEdit,
   onRescore,
   onSaveApplication
 }: QuickApplyPanelProps) {
   const [loadingIndex, setLoadingIndex] = useState(0);
+  const [suggestLoadingIndex, setSuggestLoadingIndex] = useState(0);
   const [editingField, setEditingField] = useState<keyof JobMetadata | null>(null);
   const [editInstruction, setEditInstruction] = useState("");
+  const [suggestUserNotes, setSuggestUserNotes] = useState("");
+  const [selectedProposalIds, setSelectedProposalIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!isLoading) {
@@ -81,6 +126,28 @@ export function QuickApplyPanel({
 
     return () => window.clearInterval(interval);
   }, [isLoading]);
+
+  useEffect(() => {
+    if (!isSuggestLoading) {
+      setSuggestLoadingIndex(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setSuggestLoadingIndex((current) => (current + 1) % suggestLoadingMessages.length);
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [isSuggestLoading]);
+
+  useEffect(() => {
+    if (!proposeEditsResult?.proposals?.length) {
+      setSelectedProposalIds(new Set());
+      return;
+    }
+
+    setSelectedProposalIds(new Set(proposeEditsResult.proposals.map((proposal) => proposal.id)));
+  }, [proposeEditsResult]);
 
   const metadataEntries = [
     { key: "company", label: metadata.company || "Company" },
@@ -173,6 +240,160 @@ export function QuickApplyPanel({
             </>
           )}
         </button>
+
+        <div className="rounded-[24px] border border-teal-200 bg-teal-50/50 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">Suggest edits</span>
+            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-medium text-teal-800">Review first</span>
+          </div>
+          <p className="mb-2 text-xs text-slate-600">
+            Like ChatGPT: get discrete bullet/profile/skill proposals, preview each one, then apply only what you want.
+            {usesWorkingCvAsSuggestBase ? (
+              <span className="block pt-1 text-amber-800">Using your working CV as the base — set a Master CV for the fullest evidence pool.</span>
+            ) : null}
+          </p>
+          <textarea
+            value={suggestUserNotes}
+            onChange={(event) => setSuggestUserNotes(event.target.value)}
+            rows={2}
+            disabled={disabled || isLoading}
+            placeholder='Optional: "Bold metrics", "Keep only 4 SE bullets", "De-emphasize Kubernetes"'
+            className="mb-3 w-full rounded-2xl border border-teal-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              onSuggestEdits(suggestUserNotes.trim());
+            }}
+            disabled={disabled || isLoading || !jobDescription.trim()}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            {isSuggestLoading ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                <span>{suggestLoadingMessages[suggestLoadingIndex]}</span>
+              </>
+            ) : (
+              <span>💡 Propose JD edits</span>
+            )}
+          </button>
+
+          {proposalApplySuccess ? (
+            <div className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-900">
+              ✓ {proposalApplySuccess}
+            </div>
+          ) : null}
+
+          {proposeEditsResult ? (
+            <div className="mt-4 space-y-3 border-t border-teal-200 pt-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-slate-900">Review proposals</p>
+                <button
+                  type="button"
+                  onClick={onDismissProposals}
+                  disabled={disabled || isSuggestLoading}
+                  className="text-xs font-semibold text-teal-700 underline-offset-2 hover:underline disabled:opacity-50"
+                >
+                  Clear list
+                </button>
+              </div>
+              <p className="text-xs leading-relaxed text-slate-600">{proposeEditsResult.coachingSummary}</p>
+              {proposeEditsResult.warnings.length > 0 ? (
+                <ul className="space-y-1 text-xs text-amber-900">
+                  {proposeEditsResult.warnings.map((warning, index) => (
+                    <li key={`${warning}-${index}`} className="rounded-lg bg-amber-50 px-2 py-1">
+                      ⚠ {warning}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedProposalIds(new Set(proposeEditsResult.proposals.map((proposal) => proposal.id)))
+                  }
+                  disabled={disabled || proposeEditsResult.proposals.length === 0}
+                  className="rounded-full border border-teal-300 bg-white px-3 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProposalIds(new Set())}
+                  disabled={disabled || proposeEditsResult.proposals.length === 0}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Select none
+                </button>
+              </div>
+
+              <ul className="max-h-[min(420px,50vh)] space-y-3 overflow-y-auto pr-1">
+                {proposeEditsResult.proposals.map((proposal) => (
+                  <li key={proposal.id}>
+                    <label className="flex cursor-pointer gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-teal-300">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        checked={selectedProposalIds.has(proposal.id)}
+                        onChange={(event) => {
+                          setSelectedProposalIds((previous) => {
+                            const next = new Set(previous);
+                            if (event.target.checked) {
+                              next.add(proposal.id);
+                            } else {
+                              next.delete(proposal.id);
+                            }
+                            return next;
+                          });
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="font-semibold text-slate-900">{proposal.title}</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+                            {proposal.patchType.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">{proposal.rationale}</p>
+                        {proposal.beforeSummary.trim() ? (
+                          <p className="mt-2 text-[11px] text-slate-500">
+                            <span className="font-semibold text-slate-700">Was: </span>
+                            {proposal.beforeSummary}
+                          </p>
+                        ) : null}
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-[11px] font-semibold text-teal-700">
+                            Preview patch
+                          </summary>
+                          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-50 p-2 font-mono text-[11px] text-slate-800">
+                            {previewProposalPatch(proposal)}
+                          </pre>
+                        </details>
+                      </div>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const ids = [...selectedProposalIds];
+                  if (ids.length === 0) {
+                    return;
+                  }
+                  onApplySelectedProposals(ids);
+                }}
+                disabled={disabled || selectedProposalIds.size === 0 || proposeEditsResult.proposals.length === 0}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                Apply selected to working CV ({selectedProposalIds.size})
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* Quick Edit box */}

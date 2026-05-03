@@ -6,10 +6,12 @@ import { QuickApplyPanel } from "@/components/QuickApplyPanel";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
+import { applyCvProposals } from "@/lib/applyCvProposals";
 import { generateATSText, generateATSHtml, getATSPdfFilename, getATSPdfTitle } from "@/lib/cvText";
 import { sampleResume } from "@/sampleResume";
 import {
   JobMetadata,
+  ProposeEditsResponse,
   RecentApplication,
   ResumeData,
   ResumeSectionKey,
@@ -729,6 +731,9 @@ export default function HomePage() {
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
   const [isRescoring, setIsRescoring] = useState(false);
   const [isSaveSuccess, setIsSaveSuccess] = useState(false);
+  const [proposeEditsResult, setProposeEditsResult] = useState<ProposeEditsResponse | null>(null);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const [proposalApplySuccess, setProposalApplySuccess] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -1181,7 +1186,7 @@ export default function HomePage() {
 
       if (hasModifier && event.key === "Enter") {
         event.preventDefault();
-        if (!isLoading) {
+        if (!isLoading && !isSuggestLoading) {
           generateShortcutRef.current?.();
         }
       }
@@ -1203,7 +1208,80 @@ export default function HomePage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLoading]);
+  }, [isLoading, isSuggestLoading]);
+
+  const handleSuggestEdits = async (userNotes: string) => {
+    if (!jobDescription.trim()) {
+      setError("Paste a job description before requesting edit proposals.");
+      return;
+    }
+
+    setError(null);
+    setProposalApplySuccess(null);
+    setIsSuggestLoading(true);
+
+    try {
+      const baseCV = masterCV ?? resume;
+      const response = await fetch("/api/propose-cv-edits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          baseCV,
+          jobDescription: jobDescription.trim(),
+          userNotes: userNotes || undefined
+        })
+      });
+
+      const parsed = (await response.json()) as ProposeEditsResponse & { error?: string };
+      if (!response.ok) {
+        throw new Error(parsed.error ?? "Failed to propose edits.");
+      }
+
+      setProposeEditsResult(parsed);
+    } catch (requestError) {
+      setProposeEditsResult(null);
+      setError(
+        requestError instanceof Error ? requestError.message : "Failed to propose edits."
+      );
+    } finally {
+      setIsSuggestLoading(false);
+    }
+  };
+
+  const handleDismissProposals = () => {
+    setProposeEditsResult(null);
+    setProposalApplySuccess(null);
+  };
+
+  const handleApplySelectedProposals = (proposalIds: string[]) => {
+    if (!proposeEditsResult || proposalIds.length === 0) {
+      return;
+    }
+
+    const selected = proposeEditsResult.proposals.filter((proposal) =>
+      proposalIds.includes(proposal.id)
+    );
+
+    if (selected.length === 0) {
+      return;
+    }
+
+    setResume((current) => applyCvProposals(current, selected));
+    setProposalApplySuccess(`Merged ${selected.length} proposal(s) into your working CV.`);
+
+    setProposeEditsResult((previous) => {
+      if (!previous) {
+        return null;
+      }
+
+      const remaining = previous.proposals.filter((proposal) => !proposalIds.includes(proposal.id));
+      return remaining.length > 0 ? { ...previous, proposals: remaining } : null;
+    });
+
+    setTimeout(() => setProposalApplySuccess(null), 5000);
+  };
 
   const handleApplyEdit = async (instruction: string) => {
     setIsEditLoading(true);
@@ -1545,13 +1623,17 @@ export default function HomePage() {
           jobDescription={jobDescription}
           metadata={jobMetadata}
           result={result}
+          proposeEditsResult={proposeEditsResult}
           error={error}
           isLoading={isLoading}
+          isSuggestLoading={isSuggestLoading}
           isEditLoading={isEditLoading}
           editSuccess={editSuccess}
+          proposalApplySuccess={proposalApplySuccess}
+          usesWorkingCvAsSuggestBase={!masterCV}
           isRescoring={isRescoring}
           isSaveSuccess={isSaveSuccess}
-          disabled={isLoading || isEditLoading}
+          disabled={isLoading || isEditLoading || isSuggestLoading}
           activeTab={activeResultTab}
           onJobDescriptionChange={setJobDescription}
           onJobDescriptionPaste={(value) => {
@@ -1563,6 +1645,11 @@ export default function HomePage() {
           onGenerate={() => {
             void handleGenerate();
           }}
+          onSuggestEdits={(notes) => {
+            void handleSuggestEdits(notes);
+          }}
+          onDismissProposals={handleDismissProposals}
+          onApplySelectedProposals={handleApplySelectedProposals}
           onTabChange={setActiveResultTab}
           onApplyEdit={(instruction) => { void handleApplyEdit(instruction); }}
           onRescore={() => { void handleRescore(); }}

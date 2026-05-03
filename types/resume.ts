@@ -93,6 +93,48 @@ export type TailorResponse = {
   matchBreakdown: MatchBreakdown;
 };
 
+/** Discrete JD-driven patch for review before merging into the working CV */
+export type CvProposalPatchType =
+  | "profile"
+  | "skills"
+  | "experience_bullets"
+  | "projects_list"
+  | "languages";
+
+export type CvSkillGroupPatch = {
+  groupName: string;
+  items: string[];
+};
+
+export type CvEditProposal = {
+  id: string;
+  title: string;
+  rationale: string;
+  patchType: CvProposalPatchType;
+  /** Short excerpt of current content this replaces (may be empty if additive) */
+  beforeSummary: string;
+  profileText: string;
+  /** Match substring against role or company (case-insensitive) */
+  experienceRoleHint: string;
+  experienceBullets: string[];
+  projectItems: ProjectItem[];
+  languageItems: LanguageItem[];
+  skillGroups: CvSkillGroupPatch[];
+};
+
+export type ProposeEditsRequest = {
+  baseCV: ResumeData;
+  jobDescription: string;
+  /** Optional user steer e.g. "keep internship short", "emphasize Kubernetes" */
+  userNotes?: string;
+};
+
+export type ProposeEditsResponse = {
+  coachingSummary: string;
+  proposals: CvEditProposal[];
+  warnings: string[];
+};
+
 export type RecentApplication = JobMetadata & {
   id: number;
   timestamp: string;

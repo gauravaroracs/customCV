@@ -125,6 +125,7 @@ export function Toolbar({
               <div className="font-semibold text-slate-900">Shortcuts</div>
               <div className="mt-2 space-y-1">
                 <div>Cmd/Ctrl+Enter → Tailor &amp; Generate</div>
+                <div className="text-slate-500">Quick Apply → Propose JD edits for review-first changes</div>
                 <div>Cmd/Ctrl+D → Download PDF</div>
                 <div>Cmd/Ctrl+Shift+C → Copy plain text</div>
                 <div>Escape → Close modal</div>
