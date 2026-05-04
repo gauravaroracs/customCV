@@ -1,22 +1,32 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MasterCvModal } from "@/components/MasterCvModal";
-import { QuickApplyPanel } from "@/components/QuickApplyPanel";
-import { ResumeEditor } from "@/components/ResumeEditor";
+import { CvChatPanel, type CvChatMessage } from "@/components/CvChatPanel";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
-import { applyCvProposals } from "@/lib/applyCvProposals";
-import { generateATSText, generateATSHtml, getATSPdfFilename, getATSPdfTitle } from "@/lib/cvText";
+import { generateATSText, generateATSHtml, getATSPdfTitle } from "@/lib/cvText";
+import { resumeToEditorJson } from "@/lib/resumeEditorJson";
 import { sampleResume } from "@/sampleResume";
 import {
   JobMetadata,
-  ProposeEditsResponse,
   RecentApplication,
   ResumeData,
-  ResumeSectionKey,
   TailorResponse
 } from "@/types/resume";
+
+const CvJsonEditor = dynamic(
+  () => import("@/components/CvJsonEditor").then((mod) => ({ default: mod.CvJsonEditor })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[1123px] min-h-[1123px] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-white text-sm text-slate-500 shadow-panel">
+        Loading editor…
+      </div>
+    )
+  }
+);
 
 // ── Legacy localStorage keys used only for one-time migration fallback ──────
 const LEGACY_STORAGE_KEY        = "cvpilot-resume";
@@ -51,16 +61,6 @@ const emptyMetadata: JobMetadata = {
   company: "",
   role: "",
   location: ""
-};
-
-const defaultOpenSections: Record<ResumeSectionKey, boolean> = {
-  personal: true,
-  profile: true,
-  skills: true,
-  languages: false,
-  education: true,
-  experience: true,
-  projects: false
 };
 
 function readFileAsDataUrl(file: File) {
@@ -117,9 +117,10 @@ function downloadTextFile(content: string, filename: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-async function readRepoStorage(): Promise<CvPilotStorageSnapshot> {
+async function readRepoStorage(signal?: AbortSignal): Promise<CvPilotStorageSnapshot> {
   const response = await fetch("/api/cvpilot-storage", {
-    cache: "no-store"
+    cache: "no-store",
+    ...(signal ? { signal } : {})
   });
 
   if (!response.ok) {
@@ -278,398 +279,34 @@ function withStoredPhoto(cv: ResumeData, storedPhoto: string | null) {
   };
 }
 
-function getSkillKey(skill: string) {
-  const normalized = skill
-    .toLowerCase()
-    .replace(/\([^)]*\)/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-
-  if (/\bpython\b/.test(normalized)) return "python";
-  if (/\bsql\b|\bmysql\b|\bpostgresql\b/.test(normalized)) return "sql";
-  if (/\bcsv\b|\bexcel\b/.test(normalized)) return "csv-excel";
-  if (/\breporting\b/.test(normalized) && /\bautomation\b/.test(normalized)) return "reporting-automation";
-  return normalized;
-}
-
-function uniqueSkills(values: string[]) {
-  const seen = new Set<string>();
-
-  return values.filter((value) => {
-    const key = getSkillKey(value);
-    if (!key || seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
+function getResumeSyncSignature(cv: ResumeData) {
+  return JSON.stringify({
+    personal: {
+      name: cv.personal.name,
+      email: cv.personal.email,
+      phone: cv.personal.phone,
+      location: cv.personal.location,
+      linkedin: cv.personal.linkedin,
+      website: cv.personal.website
+    },
+    profile: cv.profile,
+    skills: cv.skills,
+    languages: cv.languages,
+    education: cv.education,
+    experience: cv.experience,
+    projects: cv.projects
   });
 }
 
-function getInstructionBlock(
-  instruction: string,
-  startPattern: RegExp,
-  endPatterns: RegExp[]
-) {
-  const startMatch = startPattern.exec(instruction);
-  if (!startMatch || startMatch.index < 0) {
-    return "";
-  }
-
-  const startIndex = startMatch.index + startMatch[0].length;
-  const rest = instruction.slice(startIndex);
-  const endIndex = endPatterns.reduce((nearestEnd, pattern) => {
-    const match = pattern.exec(rest);
-    return match && match.index >= 0 ? Math.min(nearestEnd, match.index) : nearestEnd;
-  }, rest.length);
-
-  return rest.slice(0, endIndex).trim();
-}
-
-function getBulletLines(block: string) {
-  return block
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("-"))
-    .map((line) => line.replace(/^-\s*/, "").trim())
-    .filter(Boolean);
-}
-
-function parseSkillsReplacement(block: string) {
-  const skills: Record<string, string[]> = {};
-  let currentGroup = "";
-  const knownGroups = new Set(["frontend", "backend", "tools", "soft skills"]);
-
-  block.split("\n").forEach((rawLine) => {
-    const line = rawLine.trim();
-    if (!line) {
-      return;
-    }
-
-    const groupMatch = /^([^:-][^:]+):$/.exec(line);
-    const isPlainGroup = /^[A-Z][A-Z\s&]+$/.test(line) || knownGroups.has(line.toLowerCase());
-    if (groupMatch || isPlainGroup) {
-      currentGroup = groupMatch ? groupMatch[1].trim() : line;
-      skills[currentGroup] = [];
-      return;
-    }
-
-    if (currentGroup && line.startsWith("-")) {
-      skills[currentGroup].push(line.replace(/^-\s*/, "").trim());
-      return;
-    }
-
-    if (currentGroup && line.includes("•")) {
-      skills[currentGroup].push(
-        ...line
-          .split("•")
-          .map((value) => value.trim())
-          .filter(Boolean)
-      );
-    }
-  });
-
-  return Object.keys(skills).length > 0 ? skills : null;
-}
-
-function upsertLanguage(languages: ResumeData["languages"], name: string, level: string) {
-  const nextLanguages = languages.map((language) => ({ ...language }));
-  const index = nextLanguages.findIndex((language) =>
-    language.name.toLowerCase().includes(name.toLowerCase())
-  );
-
-  if (index >= 0) {
-    nextLanguages[index] = { ...nextLanguages[index], level };
-    return nextLanguages;
-  }
-
-  return [...nextLanguages, { name, level }];
-}
-
-function upsertEducation(
-  education: ResumeData["education"],
-  nextEducation: ResumeData["education"][number]
-) {
-  const existingIndex = education.findIndex((item) =>
-    item.degree.toLowerCase().includes(nextEducation.degree.toLowerCase().slice(0, 6))
-  );
-
-  if (existingIndex < 0) {
-    return [nextEducation, ...education];
-  }
-
-  return education.map((item, index) =>
-    index === existingIndex
-      ? {
-          ...item,
-          ...nextEducation,
-          details: nextEducation.details
-        }
-      : item
+function isFraunhoferNlpResume(cv: ResumeData) {
+  const text = getResumeSyncSignature(cv).toLowerCase();
+  return (
+    text.includes("fraunhofer sit") ||
+    text.includes("introduction to large language models") ||
+    text.includes("ai / ml / nlp")
   );
 }
 
-function withProjectFirst(
-  projects: ResumeData["projects"],
-  project: ResumeData["projects"][number]
-) {
-  return [
-    project,
-    ...projects.filter((item) => item.name.toLowerCase() !== project.name.toLowerCase())
-  ];
-}
-
-function applyDeterministicQuickEdit(
-  currentResume: ResumeData,
-  instruction: string
-): { updatedResume: ResumeData; summary: string } | null {
-  const lowerInstruction = instruction.toLowerCase();
-  const nextResume: ResumeData = {
-    ...currentResume,
-    personal: { ...currentResume.personal },
-    skills: Object.fromEntries(
-      Object.entries(currentResume.skills).map(([group, values]) => [group, [...values]])
-    ),
-    languages: currentResume.languages.map((language) => ({ ...language })),
-    education: currentResume.education.map((education) => ({
-      ...education,
-      details: [...education.details]
-    })),
-    experience: currentResume.experience.map((experience) => ({
-      ...experience,
-      bullets: [...experience.bullets]
-    })),
-    projects: currentResume.projects.map((project) => ({
-      ...project,
-      bullets: [...project.bullets]
-    }))
-  };
-  const summaries: string[] = [];
-
-  if (/gaurav-arora-cs\.vercel\.app/i.test(instruction)) {
-    nextResume.personal.website = "https://gaurav-arora-cs.vercel.app/";
-    summaries.push("Restored portfolio website in contact.");
-  }
-
-  const summaryBlock = getInstructionBlock(
-    instruction,
-    /(?:change|shorten)\s+(?:the\s+)?summary[\s\S]*?replace\s+with:\s*/i,
-    [/\n\s*2\.\s+reduce\s+software\s+engineer/i, /\n\s*3\.\s+reorder\s+skills/i, /\n\s*\d+\.\s+/i]
-  );
-
-  if (summaryBlock) {
-    const nextSummary = summaryBlock
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .join(" ");
-
-    if (nextSummary) {
-      nextResume.profile = nextSummary;
-      summaries.push("Replaced summary.");
-    }
-  }
-
-  const skillsBlock = getInstructionBlock(
-    instruction,
-    /replace\s+skills\s+with:\s*/i,
-    [/\n\s*4\.\s+add\s+one\s+project/i, /\n\s*\d+\.\s+/i]
-  ) || getInstructionBlock(
-    instruction,
-    /shorten\s+skills[\s\S]*?use\s+this\s+shorter\s+version:\s*/i,
-    [/\n\s*6\.\s+add\s+gpa/i, /\n\s*\d+\.\s+/i]
-  );
-  const replacementSkills = parseSkillsReplacement(skillsBlock);
-
-  if (replacementSkills) {
-    nextResume.skills = replacementSkills;
-    summaries.push("Replaced skills.");
-  }
-
-  if (/AI Resume Editor\s*\|/i.test(instruction)) {
-    const projectTechMatch = /AI Resume Editor\s*\|\s*([^\n]+)/i.exec(instruction);
-    const projectBlock = getInstructionBlock(
-      instruction,
-      /AI Resume Editor\s*\|[^\n]*\n/i,
-      [/\n\s*If you used NestJS/i, /\n\s*5\.\s+strengthen\s+experience/i, /\n\s*\d+\.\s+/i]
-    );
-    const projectBullets = getBulletLines(projectBlock);
-
-    nextResume.projects = withProjectFirst(nextResume.projects, {
-      name: "AI Resume Editor",
-      tech: (projectTechMatch?.[1] ?? "Next.js, React, TypeScript, Tailwind CSS").trim(),
-      bullets:
-        projectBullets.length > 0
-          ? projectBullets
-          : [
-              "Building a web-based resume editing tool for structured AI-assisted CV edits.",
-              "Designed reusable React components and Tailwind layouts for responsive editing."
-            ]
-    });
-    summaries.push("Added AI Resume Editor project.");
-  }
-
-  const softwareEngineerBulletsBlock = getInstructionBlock(
-    instruction,
-    /replace\s+software\s+engineer\s+bullets\s+with:\s*/i,
-    [/\n\s*6\.\s+fix\s+education/i, /\n\s*3\.\s+reduce\s+projects/i, /\n\s*\d+\.\s+/i]
-  ) || getInstructionBlock(
-    instruction,
-    /reduce\s+software\s+engineer[\s\S]*?keep\s+only\s+these:\s*/i,
-    [/\n\s*remove\s+these\s+two:/i, /\n\s*3\.\s+reduce\s+projects/i, /\n\s*\d+\.\s+/i]
-  );
-  const softwareEngineerBullets = getBulletLines(softwareEngineerBulletsBlock);
-
-  if (softwareEngineerBullets.length > 0) {
-    const softwareEngineerIndex = nextResume.experience.findIndex((experience) =>
-      experience.role.toLowerCase().includes("software engineer")
-    );
-
-    if (softwareEngineerIndex >= 0) {
-      nextResume.experience = nextResume.experience.map((experience, index) =>
-        index === softwareEngineerIndex
-          ? { ...experience, bullets: softwareEngineerBullets }
-          : experience
-      );
-    }
-
-    summaries.push("Replaced Software Engineer bullets.");
-  }
-
-  if (/gpa:\s*2\.25/i.test(instruction) || /specialization:\s*data science/i.test(instruction)) {
-    nextResume.education = upsertEducation(nextResume.education, {
-      degree: "M.Sc. Computer Science",
-      institution: "Technische Universität Darmstadt",
-      location: "Darmstadt, Germany",
-      dates: "08/2025 - Present",
-      details: ["GPA: 2.25", "Specialization: Data Science & Engineering"]
-    });
-
-    const hasBtech = nextResume.education.some((item) =>
-      item.degree.toLowerCase().includes("b.tech")
-    );
-    if (!hasBtech) {
-      nextResume.education.push({
-        degree: "B.Tech. Computer Science and Engineering",
-        institution: "Walchand College of Engineering",
-        location: "Maharashtra, India",
-        dates: "08/2018 - 07/2022",
-        details: ["Grade: 8.1/10 (~1.9 German scale)"]
-      });
-    }
-
-    summaries.push("Updated education.");
-  }
-
-  if (
-    lowerInstruction.includes("german") &&
-    lowerInstruction.includes("a2") &&
-    lowerInstruction.includes("b1")
-  ) {
-    const germanLevel = lowerInstruction.includes("certified")
-      ? "A2 certified, actively learning B1"
-      : "A2, actively learning B1";
-
-    nextResume.languages = upsertLanguage(nextResume.languages, "German", germanLevel);
-    summaries.push(`Set German to ${germanLevel}.`);
-  }
-
-  const asksForDataMerge =
-    lowerInstruction.includes("data section") &&
-    (lowerInstruction.includes("merge") ||
-      lowerInstruction.includes("remove") ||
-      lowerInstruction.includes("repetitive") ||
-      lowerInstruction.includes("crowded"));
-  const asksForSkillDedupe =
-    lowerInstruction.includes("skill") &&
-    (lowerInstruction.includes("repetitive") || lowerInstruction.includes("crowded"));
-
-  if (asksForDataMerge || asksForSkillDedupe) {
-    const targetGroup =
-      Object.keys(nextResume.skills).find((group) => /ai.*automation.*data/i.test(group)) ??
-      "AI, Automation & Data";
-    const dataGroup = Object.keys(nextResume.skills).find((group) => group.toLowerCase() === "data");
-    const mergedValues = [
-      ...(nextResume.skills[targetGroup] ?? []),
-      ...(dataGroup ? nextResume.skills[dataGroup] ?? [] : [])
-    ];
-
-    nextResume.skills[targetGroup] = uniqueSkills(mergedValues);
-
-    if (dataGroup && dataGroup !== targetGroup) {
-      delete nextResume.skills[dataGroup];
-    }
-
-    const preferredKeys = new Set(nextResume.skills[targetGroup].map(getSkillKey));
-    nextResume.skills = Object.fromEntries(
-      Object.entries(nextResume.skills)
-        .map(([group, values]) => {
-          if (group === targetGroup) {
-            return [group, values] as const;
-          }
-
-          return [
-            group,
-            uniqueSkills(values).filter((value) => !preferredKeys.has(getSkillKey(value)))
-          ] as const;
-        })
-        .filter(([, values]) => values.length > 0)
-    );
-
-    summaries.push(`Merged Data skills into ${targetGroup} and removed repeated skill entries.`);
-  }
-
-  const wantsProjectReduction =
-    (/reduce\s+projects/i.test(instruction) ||
-      /\bkeep\s+only\s+(?:these\s+)?(?:two\s+)?projects?\b/i.test(instruction)) &&
-    /ai\s+resume\s+editor/i.test(instruction) &&
-    /\bexpense\b/i.test(instruction);
-
-  if (wantsProjectReduction) {
-    const aiProj = nextResume.projects.find((p) => /ai\s+resume\s+editor/i.test(p.name));
-    const expenseProj = nextResume.projects.find((p) => /\bexpense\b/i.test(p.name));
-    const trimmed: ResumeData["projects"] = [];
-    if (aiProj) {
-      trimmed.push({ ...aiProj, bullets: [...aiProj.bullets] });
-    }
-    if (expenseProj) {
-      trimmed.push({ ...expenseProj, bullets: [...expenseProj.bullets] });
-    }
-    if (trimmed.length > 0) {
-      nextResume.projects = trimmed;
-      summaries.push("Reduced projects to AI Resume Editor and Expense Bot.");
-    }
-  }
-
-  const aiResumeBulletsBlock = getInstructionBlock(
-    instruction,
-    /replace\s+ai\s+resume\s+editor\s+bullets\s+with:\s*/i,
-    [/\n\s*reduce\s+projects/i, /\n\s*\d+\.\s+/i]
-  );
-  const aiResumeBulletsFromBlock = getBulletLines(aiResumeBulletsBlock).slice(0, 2);
-
-  const wantsAiResumeTwoBullets =
-    /\bshorten\s+ai\s+resume\s+editor\b[\s\S]{0,1200}?\b2\s+bullets\b/i.test(instruction) ||
-    /\bai\s+resume\s+editor\b[\s\S]{0,1200}?\b(?:only|exactly)\s+2\s+bullets\b/i.test(instruction);
-
-  if (wantsAiResumeTwoBullets || aiResumeBulletsFromBlock.length > 0) {
-    const aiIdx = nextResume.projects.findIndex((p) => /ai\s+resume\s+editor/i.test(p.name));
-    if (aiIdx >= 0) {
-      const nextBullets =
-        aiResumeBulletsFromBlock.length > 0
-          ? aiResumeBulletsFromBlock
-          : nextResume.projects[aiIdx].bullets.slice(0, 2);
-      nextResume.projects = nextResume.projects.map((p, i) =>
-        i === aiIdx ? { ...p, bullets: nextBullets } : p
-      );
-      summaries.push("Shortened AI Resume Editor to 2 bullets.");
-    }
-  }
-
-  return summaries.length > 0
-    ? { updatedResume: nextResume, summary: summaries.join(" ") }
-    : null;
-}
 
 function normalizeRecentApplications(value: unknown): RecentApplication[] {
   if (!Array.isArray(value)) {
@@ -700,26 +337,31 @@ function normalizeRecentApplications(value: unknown): RecentApplication[] {
 
 export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const generateShortcutRef = useRef<(() => void) | null>(null);
+  const handleCvChatSendRef = useRef<() => Promise<void>>(async () => {});
   const copyShortcutRef = useRef<(() => Promise<void>) | null>(null);
   const downloadPdfRef = useRef<(() => void) | null>(null);
   const storedPhotoRef = useRef("");
+  const resumeRef = useRef<ResumeData>(sampleResume);
+  const loadGenerationRef = useRef(0);
   const [importTarget, setImportTarget] = useState<"working" | "master">("working");
   const [resume, setResume] = useState<ResumeData>(sampleResume);
   const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
   const [selectedVersion, setSelectedVersion] = useState(versions[0]);
-  const [selectedSection, setSelectedSection] = useState<ResumeSectionKey | null>("profile");
-  const [openSections, setOpenSections] =
-    useState<Record<ResumeSectionKey, boolean>>(defaultOpenSections);
+  const [editorSyncNonce, setEditorSyncNonce] = useState(0);
+  const [jsonDraft, setJsonDraft] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [cvChatMessages, setCvChatMessages] = useState<CvChatMessage[]>([]);
+  const [cvChatDraft, setCvChatDraft] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const [jobDescription, setJobDescription] = useState("");
   const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
   const [result, setResult] = useState<TailorResponse | null>(null);
-  const [activeResultTab, setActiveResultTab] = useState<"preview" | "changes">("preview");
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
   const [hasStoredMasterCV, setHasStoredMasterCV] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [cvFontSize, setCvFontSize] = useState("9.5px");
   const [cvFontWeight, setCvFontWeight] = useState("400");
@@ -727,20 +369,126 @@ export default function HomePage() {
   const [cvBottomMargin, setCvBottomMargin] = useState("12px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [isEditLoading, setIsEditLoading] = useState(false);
-  const [editSuccess, setEditSuccess] = useState<string | null>(null);
   const [isRescoring, setIsRescoring] = useState(false);
   const [isSaveSuccess, setIsSaveSuccess] = useState(false);
-  const [proposeEditsResult, setProposeEditsResult] = useState<ProposeEditsResponse | null>(null);
-  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
-  const [proposalApplySuccess, setProposalApplySuccess] = useState<string | null>(null);
+
+  const bumpEditorSync = useCallback(() => {
+    setEditorSyncNonce((previous) => previous + 1);
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    resumeRef.current = resume;
+  }, [resume]);
+
+  useLayoutEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    setJsonDraft(resumeToEditorJson(resumeRef.current));
+    setJsonError(null);
+  }, [editorSyncNonce, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || !jsonDraft.trim()) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      try {
+        const parsed = normalizeResumeInput(JSON.parse(jsonDraft));
+        const merged = withStoredPhoto(parsed, storedPhotoRef.current);
+        setResume(merged);
+        setJsonError(null);
+      } catch {
+        setJsonError("Invalid JSON");
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [jsonDraft, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    let isCancelled = false;
+    let interval: number | undefined;
+    let attempts = 0;
+
+    const syncFromRepoStorage = async () => {
+      try {
+        attempts += 1;
+        const repoStorage = await readRepoStorage();
+        if (isCancelled || !repoStorage.workingCV) {
+          return;
+        }
+
+        const serverResume = withStoredPhoto(
+          normalizeResumeInput(repoStorage.workingCV),
+          storedPhotoRef.current
+        );
+        const currentResume = resumeRef.current;
+
+        if (
+          isFraunhoferNlpResume(serverResume) &&
+          getResumeSyncSignature(serverResume) !== getResumeSyncSignature(currentResume)
+        ) {
+          setResume(serverResume);
+          setJsonDraft(resumeToEditorJson(serverResume));
+          setJsonError(null);
+          if (interval) {
+            window.clearInterval(interval);
+          }
+        } else if (isFraunhoferNlpResume(serverResume) || attempts >= 20) {
+          if (interval) {
+            window.clearInterval(interval);
+          }
+        }
+      } catch {
+        // Keep local editing responsive if a background reconciliation request fails.
+        if (attempts >= 20 && interval) {
+          window.clearInterval(interval);
+        }
+      }
+    };
+
+    void syncFromRepoStorage();
+    interval = window.setInterval(() => {
+      void syncFromRepoStorage();
+    }, 1500);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [isHydrated]);
+
+  useEffect(() => {
+    const generation = ++loadGenerationRef.current;
+    const abortController = new AbortController();
+    const failsafeId = window.setTimeout(() => {
+      if (loadGenerationRef.current !== generation) {
+        return;
+      }
+
+      setIsHydrated(true);
+      setError(
+        (previous) =>
+          previous ??
+          "Timed out loading CV storage — check that `npm run dev` is running and refresh."
+      );
+      setMasterModalMode("setup");
+      setShowMasterModal(true);
+    }, 15_000);
 
     const loadStoredState = async () => {
       try {
-        const repoStorage = await readRepoStorage();
+        const repoStorage = await readRepoStorage(abortController.signal);
+        if (loadGenerationRef.current !== generation) {
+          return;
+        }
         const legacyStoredMaster = window.localStorage.getItem(MASTER_CV_STORAGE_KEY)
           ?? window.localStorage.getItem("masterCV");
         const legacyStoredWorking =
@@ -817,10 +565,6 @@ export default function HomePage() {
           didMigrate = true;
         }
 
-        if (!isMounted) {
-          return;
-        }
-
         if (nextMaster) {
           setMasterCV(nextMaster);
           setHasStoredMasterCV(true);
@@ -872,7 +616,7 @@ export default function HomePage() {
           });
         }
       } catch (storageError) {
-        if (!isMounted) {
+        if (loadGenerationRef.current !== generation) {
           return;
         }
 
@@ -880,13 +624,16 @@ export default function HomePage() {
         setMasterModalMode("setup");
         setShowMasterModal(true);
         setIsHydrated(true);
+      } finally {
+        window.clearTimeout(failsafeId);
       }
     };
 
     void loadStoredState();
 
     return () => {
-      isMounted = false;
+      abortController.abort();
+      window.clearTimeout(failsafeId);
     };
   }, []);
 
@@ -973,6 +720,7 @@ export default function HomePage() {
   const persistMasterCV = async (nextMasterCV: ResumeData) => {
     setMasterCV(nextMasterCV);
     setResume(nextMasterCV);
+    bumpEditorSync();
     try {
       await patchRepoStorage({
         masterCV: nextMasterCV,
@@ -987,12 +735,6 @@ export default function HomePage() {
     setResult(null);
     setMasterModalMode("update");
     setShowMasterModal(false);
-  };
-
-  const handleResumeChange = (nextResume: ResumeData) => {
-    setResume(nextResume);
-    setResult(null);
-    setError(null);
   };
 
   const handleExport = () => {
@@ -1022,6 +764,7 @@ export default function HomePage() {
         await persistMasterCV(parsed);
       } else {
         setResume(parsed);
+        bumpEditorSync();
         setResult(null);
         setError(null);
       }
@@ -1035,10 +778,14 @@ export default function HomePage() {
   const handleResetToMaster = () => {
     if (!masterCV) {
       setResume(sampleResume);
+      bumpEditorSync();
+      setResult(null);
+      setError(null);
       return;
     }
 
     setResume(masterCV);
+    bumpEditorSync();
     setResult(null);
     setError(null);
   };
@@ -1073,69 +820,78 @@ export default function HomePage() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!jobDescription.trim()) {
-      setError("Paste a job description before tailoring the CV.");
+  const handleCvChatSend = useCallback(async () => {
+    if (isChatLoading) {
       return;
     }
 
-    if (!masterCV) {
-      setError("Set a master CV before generating a tailored version.");
-      setShowMasterModal(true);
+    const text = cvChatDraft.trim();
+    if (!text) {
       return;
     }
 
-    setIsLoading(true);
+    const userMessage: CvChatMessage = { role: "user", content: text };
+    const transcript = [...cvChatMessages, userMessage];
+
+    setCvChatDraft("");
+    setCvChatMessages(transcript);
+    setIsChatLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/tailor-cv", {
+      const response = await fetch("/api/cv-chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          masterCV,
-          jobDescription: jobDescription.trim()
+          resume,
+          jobDescription: jobDescription.trim() || undefined,
+          messages: transcript.map((message) => ({ role: message.role, content: message.content }))
         })
       });
 
-      const parsed = (await response.json()) as TailorResponse & { error?: string };
+      const parsed = (await response.json()) as {
+        assistantMessage?: string;
+        resume?: ResumeData;
+        error?: string;
+      };
+
       if (!response.ok) {
-        throw new Error(parsed.error ?? "The AI request failed.");
+        throw new Error(parsed.error ?? "Chat failed.");
       }
 
-      const tailored = parsed.tailoredCV;
-      // Re-inject persisted photo so it survives the API round-trip.
-      tailored.personal.photoUrl = storedPhotoRef.current || "";
+      if (!parsed.resume || typeof parsed.resume !== "object") {
+        throw new Error("Model did not return a valid resume.");
+      }
 
-      setResume(tailored);
-      setResult(parsed);
-      setActiveResultTab("changes");
-
-      setRecentApplications((current) => {
-        const nextItem: RecentApplication = {
-          id: Date.now(),
-          company: jobMetadata.company,
-          role: jobMetadata.role,
-          location: jobMetadata.location,
-          timestamp: new Date().toISOString(),
-          tailoredCV: parsed.tailoredCV,
-          matchScore: parsed.matchScore ?? 0,
-          jdSnapshot: jobDescription.slice(0, 500)
-        };
-
-        return [nextItem, ...current].slice(0, 10);
-      });
-    } catch (requestError) {
+      const merged = withStoredPhoto(normalizeResumeInput(parsed.resume), storedPhotoRef.current);
+      setResume(merged);
+      setCvChatMessages([
+        ...transcript,
+        {
+          role: "assistant",
+          content:
+            typeof parsed.assistantMessage === "string"
+              ? parsed.assistantMessage
+              : "Updated your CV JSON."
+        }
+      ]);
       setResult(null);
-      setError(
-        requestError instanceof Error ? requestError.message : "The AI request failed."
-      );
+      bumpEditorSync();
+    } catch (chatError) {
+      setError(chatError instanceof Error ? chatError.message : "Chat failed.");
     } finally {
-      setIsLoading(false);
+      setIsChatLoading(false);
     }
-  };
+  }, [
+    bumpEditorSync,
+    cvChatDraft,
+    cvChatMessages,
+    isChatLoading,
+    jobDescription,
+    resume
+  ]);
 
   const handleSelectRecent = (timestamp: string) => {
     const selectedApplication = recentApplications.find((item) => item.timestamp === timestamp);
@@ -1143,7 +899,8 @@ export default function HomePage() {
       return;
     }
 
-    setResume(selectedApplication.tailoredCV);
+    setResume(withStoredPhoto(selectedApplication.tailoredCV, storedPhotoRef.current));
+    bumpEditorSync();
     setJobDescription(selectedApplication.jdSnapshot);
     setJobMetadata({
       company: selectedApplication.company,
@@ -1151,7 +908,6 @@ export default function HomePage() {
       location: selectedApplication.location
     });
     setResult(null);
-    setActiveResultTab("preview");
     setError(null);
   };
 
@@ -1170,8 +926,9 @@ export default function HomePage() {
     await navigator.clipboard.writeText(text);
   };
 
+  handleCvChatSendRef.current = handleCvChatSend;
   generateShortcutRef.current = () => {
-    void handleGenerate();
+    void handleCvChatSendRef.current();
   };
   copyShortcutRef.current = handleCopyPlainText;
   downloadPdfRef.current = downloadPDF;
@@ -1186,21 +943,21 @@ export default function HomePage() {
 
       if (hasModifier && event.key === "Enter") {
         event.preventDefault();
-        if (!isLoading && !isSuggestLoading) {
+        if (!isChatLoading) {
           generateShortcutRef.current?.();
         }
       }
 
       if (hasModifier && event.key.toLowerCase() === "d") {
         event.preventDefault();
-        if (!isLoading) {
+        if (!isChatLoading) {
           void downloadPdfRef.current?.();
         }
       }
 
       if (hasModifier && event.shiftKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
-        if (!isLoading) {
+        if (!isChatLoading) {
           void copyShortcutRef.current?.();
         }
       }
@@ -1208,122 +965,7 @@ export default function HomePage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLoading, isSuggestLoading]);
-
-  const handleSuggestEdits = async (userNotes: string) => {
-    if (!jobDescription.trim()) {
-      setError("Paste a job description before requesting edit proposals.");
-      return;
-    }
-
-    setError(null);
-    setProposalApplySuccess(null);
-    setIsSuggestLoading(true);
-
-    try {
-      const baseCV = masterCV ?? resume;
-      const response = await fetch("/api/propose-cv-edits", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          baseCV,
-          jobDescription: jobDescription.trim(),
-          userNotes: userNotes || undefined
-        })
-      });
-
-      const parsed = (await response.json()) as ProposeEditsResponse & { error?: string };
-      if (!response.ok) {
-        throw new Error(parsed.error ?? "Failed to propose edits.");
-      }
-
-      setProposeEditsResult(parsed);
-    } catch (requestError) {
-      setProposeEditsResult(null);
-      setError(
-        requestError instanceof Error ? requestError.message : "Failed to propose edits."
-      );
-    } finally {
-      setIsSuggestLoading(false);
-    }
-  };
-
-  const handleDismissProposals = () => {
-    setProposeEditsResult(null);
-    setProposalApplySuccess(null);
-  };
-
-  const handleApplySelectedProposals = (proposalIds: string[]) => {
-    if (!proposeEditsResult || proposalIds.length === 0) {
-      return;
-    }
-
-    const selected = proposeEditsResult.proposals.filter((proposal) =>
-      proposalIds.includes(proposal.id)
-    );
-
-    if (selected.length === 0) {
-      return;
-    }
-
-    setResume((current) => applyCvProposals(current, selected));
-    setProposalApplySuccess(`Merged ${selected.length} proposal(s) into your working CV.`);
-
-    setProposeEditsResult((previous) => {
-      if (!previous) {
-        return null;
-      }
-
-      const remaining = previous.proposals.filter((proposal) => !proposalIds.includes(proposal.id));
-      return remaining.length > 0 ? { ...previous, proposals: remaining } : null;
-    });
-
-    setTimeout(() => setProposalApplySuccess(null), 5000);
-  };
-
-  const handleApplyEdit = async (instruction: string) => {
-    setIsEditLoading(true);
-    setEditSuccess(null);
-    try {
-      const deterministicEdit = applyDeterministicQuickEdit(resume, instruction);
-      if (deterministicEdit) {
-        setResume(deterministicEdit.updatedResume);
-        setResult(null);
-        setError(null);
-        setEditSuccess(deterministicEdit.summary);
-        setTimeout(() => setEditSuccess(null), 4000);
-        return;
-      }
-
-      const response = await fetch("/api/rewrite-section", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullResume: resume,
-          instruction,
-          jobDescription: jobDescription.trim() || undefined
-        })
-      });
-      const parsed = (await response.json()) as {
-        updatedResume: ResumeData;
-        summaryOfChanges: string[];
-        warnings: string[];
-        error?: string;
-      };
-      if (!response.ok) throw new Error(parsed.error ?? "Edit failed.");
-      const edited = parsed.updatedResume;
-      edited.personal.photoUrl = resume.personal.photoUrl;
-      setResume(edited);
-      setEditSuccess(parsed.summaryOfChanges?.[0] ?? "Done!");
-      setTimeout(() => setEditSuccess(null), 4000);
-    } catch (editError) {
-      setError(editError instanceof Error ? editError.message : "Edit failed.");
-    } finally {
-      setIsEditLoading(false);
-    }
-  };
+  }, [isChatLoading]);
 
   const handleRescore = async () => {
     if (!jobDescription.trim()) {
@@ -1351,7 +993,6 @@ export default function HomePage() {
           ? { ...current, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown, warnings: parsed.warnings }
           : { tailoredCV: resume, changes: [], warnings: parsed.warnings, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown }
       );
-      setActiveResultTab("changes");
     } catch (rescoreError) {
       setError(rescoreError instanceof Error ? rescoreError.message : "Scoring failed.");
     } finally {
@@ -1412,6 +1053,16 @@ export default function HomePage() {
     });
     setResult(null);
     setError(null);
+  };
+
+  const handlePhotoInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    await handlePhotoUpload(file);
+    event.target.value = "";
   };
 
   // ── ATS Print-PDF download ───────────────────────────────────────────────
@@ -1488,9 +1139,10 @@ export default function HomePage() {
       <Toolbar
         selectedVersion={selectedVersion}
         versions={versions}
-        disabled={isLoading}
+        disabled={!isHydrated || isChatLoading}
         masterCvName={hasStoredMasterCV && masterCV ? (masterCV.personal.name || "Set") : null}
         recentApplications={recentApplications}
+        hasPhoto={Boolean(resume.personal.photoUrl)}
         cvFontSize={cvFontSize}
         cvFontWeight={cvFontWeight}
         cvTopMargin={cvTopMargin}
@@ -1506,6 +1158,8 @@ export default function HomePage() {
         onResetClick={handleResetToMaster}
         onUpdateMaster={handleUpdateMaster}
         onSelectRecent={handleSelectRecent}
+        onPickPhoto={() => photoInputRef.current?.click()}
+        onRemovePhoto={handlePhotoRemove}
       />
 
       <MasterCvModal
@@ -1524,117 +1178,112 @@ export default function HomePage() {
         className="hidden"
       />
 
-      <div className="mx-auto grid max-w-[1800px] grid-cols-1 gap-6 px-5 py-6 xl:grid-cols-[420px_minmax(0,1fr)_420px]">
-        <div className="no-print">
-          <ResumeEditor
-            resume={resume}
-            selectedSection={selectedSection}
-            openSections={openSections}
-            disabled={isLoading}
-            onSelectSection={(key) => {
-              setSelectedSection(key);
-              setResult(null);
-              setError(null);
-            }}
-            onToggleSection={(key) =>
-              setOpenSections((current) => ({ ...current, [key]: !current[key] }))
-            }
-            onResumeChange={handleResumeChange}
-            onPhotoUpload={handlePhotoUpload}
-            onPhotoRemove={handlePhotoRemove}
-          />
-        </div>
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={(event) => {
+          void handlePhotoInputChange(event);
+        }}
+        className="hidden"
+      />
 
-        <div className="overflow-x-auto">
-          <div className="no-print mb-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
-            Save as PDF → Margins: None → Background graphics: ON → Save
+      <div className="mx-auto max-w-[1800px] space-y-6 px-5 py-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start">
+          <div className="no-print min-w-0">
+            {isHydrated ? (
+              <CvJsonEditor value={jsonDraft} onChange={setJsonDraft} jsonError={jsonError} />
+            ) : (
+              <div className="flex h-[1123px] min-h-[1123px] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-panel">
+                Loading CV…
+              </div>
+            )}
           </div>
-          <ResumePreview
-            resume={resume}
-            isLoading={isLoading}
-            cvFontSize={cvFontSize}
-            cvFontWeight={cvFontWeight}
-            cvTopMargin={cvTopMargin}
-            cvBottomMargin={cvBottomMargin}
-            onOverflowChange={setPreviewOverflowAmount}
-          />
-          <div className="no-print mt-3 flex justify-center">
-            <div
-              className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                previewOverflowAmount > 0
-                  ? "bg-rose-100 text-rose-800"
-                  : "bg-emerald-100 text-emerald-800"
-              }`}
-            >
-              {previewOverflowAmount > 0
-                ? `⚠ Overflowing by ${Math.round(previewOverflowAmount)}px — reduce font size or content`
-                : "Fits within exact A4 height"}
+
+          <div className="min-w-0 overflow-x-auto">
+            <div className="no-print mb-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
+              Save as PDF → Margins: None → Background graphics: ON → Save
             </div>
-          </div>
-          <div className="no-print mt-4 flex flex-wrap items-start justify-center gap-3">
-            <div className="group relative">
-              <button
-                type="button"
-                onClick={downloadPDF}
-                disabled={isLoading}
-                className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg bg-slate-900 px-5 py-4 text-left text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+            <ResumePreview
+              resume={resume}
+              isLoading={isChatLoading}
+              cvFontSize={cvFontSize}
+              cvFontWeight={cvFontWeight}
+              cvTopMargin={cvTopMargin}
+              cvBottomMargin={cvBottomMargin}
+              onOverflowChange={setPreviewOverflowAmount}
+            />
+            <div className="no-print mt-3 flex justify-center">
+              <div
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  previewOverflowAmount > 0
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
               >
-                <span className="text-sm font-bold">⬇ Download PDF</span>
-                <span className="mt-1 text-xs font-semibold text-slate-200">For emailing</span>
-                <span className="mt-0.5 text-xs text-slate-300">Two-column, photo</span>
-              </button>
-              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
-                Best for emailing recruiters directly. Looks professional, includes photo.
+                {previewOverflowAmount > 0
+                  ? `⚠ Overflowing by ${Math.round(previewOverflowAmount)}px — reduce font size or content`
+                  : "Fits within exact A4 height"}
               </div>
             </div>
+            <div className="no-print mt-4 flex flex-wrap items-start justify-center gap-3">
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={downloadPDF}
+                  disabled={isChatLoading}
+                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg bg-slate-900 px-5 py-4 text-left text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <span className="text-sm font-bold">⬇ Download PDF</span>
+                  <span className="mt-1 text-xs font-semibold text-slate-200">For emailing</span>
+                  <span className="mt-0.5 text-xs text-slate-300">Two-column, photo</span>
+                </button>
+                <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-72 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
+                  Best for emailing recruiters directly. Looks professional, includes photo.
+                </div>
+              </div>
 
-            <div className="group relative">
-              <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800 ring-1 ring-amber-300">
-                Recommended for portals
-              </span>
+              <div className="group relative">
+                <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-bold text-amber-800 ring-1 ring-amber-300">
+                  Recommended for portals
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDownloadATSPdf}
+                  disabled={isChatLoading}
+                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-left text-amber-950 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="text-sm font-bold">⬇ Download ATS</span>
+                  <span className="mt-1 text-xs font-semibold text-amber-900">For job portals</span>
+                  <span className="mt-0.5 text-xs text-amber-800">Single-col, no photo</span>
+                </button>
+                <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
+                  Best for uploading to Workday, Greenhouse, Lever, SAP. Plain layout, no photo, maximum parser compatibility.
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={handleDownloadATSPdf}
-                disabled={isLoading}
-                className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-left text-amber-950 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => void handleCopyPlainText()}
+                disabled={isChatLoading}
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="text-sm font-bold">⬇ Download ATS</span>
-                <span className="mt-1 text-xs font-semibold text-amber-900">For job portals</span>
-                <span className="mt-0.5 text-xs text-amber-800">Single-col, no photo</span>
+                ⧉ Copy plain text
               </button>
-              <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-80 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700 shadow-xl group-hover:block">
-                Best for uploading to Workday, Greenhouse, Lever, SAP. Plain layout, no photo, maximum parser compatibility.
-              </div>
             </div>
-
-            {/* ── Copy plain text ── */}
-            <button
-              type="button"
-              onClick={() => void handleCopyPlainText()}
-              disabled={isLoading}
-              className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              ⧉ Copy plain text
-            </button>
           </div>
         </div>
 
-        <QuickApplyPanel
+        <CvChatPanel
+          messages={cvChatMessages}
           jobDescription={jobDescription}
           metadata={jobMetadata}
-          result={result}
-          proposeEditsResult={proposeEditsResult}
-          error={error}
-          isLoading={isLoading}
-          isSuggestLoading={isSuggestLoading}
-          isEditLoading={isEditLoading}
-          editSuccess={editSuccess}
-          proposalApplySuccess={proposalApplySuccess}
-          usesWorkingCvAsSuggestBase={!masterCV}
-          isRescoring={isRescoring}
+          draft={cvChatDraft}
+          isLoading={isChatLoading}
+          isScoring={isRescoring}
           isSaveSuccess={isSaveSuccess}
-          disabled={isLoading || isEditLoading || isSuggestLoading}
-          activeTab={activeResultTab}
+          error={error}
+          onDraftChange={setCvChatDraft}
           onJobDescriptionChange={setJobDescription}
           onJobDescriptionPaste={(value) => {
             void handleExtractMetadata(value);
@@ -1642,17 +1291,12 @@ export default function HomePage() {
           onMetadataChange={(key, value) =>
             setJobMetadata((current) => ({ ...current, [key]: value }))
           }
-          onGenerate={() => {
-            void handleGenerate();
+          onSend={() => {
+            void handleCvChatSend();
           }}
-          onSuggestEdits={(notes) => {
-            void handleSuggestEdits(notes);
+          onScore={() => {
+            void handleRescore();
           }}
-          onDismissProposals={handleDismissProposals}
-          onApplySelectedProposals={handleApplySelectedProposals}
-          onTabChange={setActiveResultTab}
-          onApplyEdit={(instruction) => { void handleApplyEdit(instruction); }}
-          onRescore={() => { void handleRescore(); }}
           onSaveApplication={handleSaveApplication}
         />
       </div>

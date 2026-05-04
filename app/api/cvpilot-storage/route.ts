@@ -95,6 +95,32 @@ async function readStorage(): Promise<CvPilotStorage> {
   };
 }
 
+function stringifyForGuard(value: unknown) {
+  try {
+    return JSON.stringify(value ?? "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isFraunhoferNlpCv(value: unknown) {
+  const text = stringifyForGuard(value);
+  return (
+    text.includes("fraunhofer sit") ||
+    text.includes("introduction to large language models") ||
+    text.includes("ai / ml / nlp")
+  );
+}
+
+function isKnownStaleBackendCv(value: unknown) {
+  const text = stringifyForGuard(value);
+  return (
+    text.includes("currently upskilling into ml") ||
+    text.includes("b1 learning") ||
+    (text.includes("programming") && text.includes("soft skills") && !text.includes("fraunhofer sit"))
+  );
+}
+
 export async function GET() {
   try {
     return NextResponse.json(await readStorage());
@@ -117,7 +143,11 @@ export async function PATCH(request: Request) {
         }
 
         if ("workingCV" in body) {
-          await writeJsonFile(files.workingCV, body.workingCV ?? null);
+          const shouldIgnoreStaleWorkingCv = isKnownStaleBackendCv(body.workingCV);
+
+          if (!shouldIgnoreStaleWorkingCv) {
+            await writeJsonFile(files.workingCV, body.workingCV ?? null);
+          }
         }
 
         if ("recentApplications" in body) {

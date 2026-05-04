@@ -10,8 +10,9 @@ type ToolbarProps = {
   cvTopMargin: string;
   cvBottomMargin: string;
   disabled?: boolean;
-  masterCvName: string | null;  // null = no master CV set yet
+  masterCvName: string | null; // null = no master CV set yet
   recentApplications: RecentApplication[];
+  hasPhoto?: boolean;
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
   onFontWeightChange: (value: string) => void;
@@ -23,6 +24,8 @@ type ToolbarProps = {
   onResetClick: () => void;
   onUpdateMaster: () => void;
   onSelectRecent: (timestamp: string) => void;
+  onPickPhoto?: () => void;
+  onRemovePhoto?: () => void;
 };
 
 function relativeTime(iso: string): string {
@@ -46,6 +49,7 @@ export function Toolbar({
   disabled = false,
   masterCvName,
   recentApplications,
+  hasPhoto = false,
   onVersionChange,
   onFontSizeChange,
   onFontWeightChange,
@@ -56,7 +60,9 @@ export function Toolbar({
   onCopyPlainText,
   onResetClick,
   onUpdateMaster,
-  onSelectRecent
+  onSelectRecent,
+  onPickPhoto,
+  onRemovePhoto
 }: ToolbarProps) {
   return (
     <div className="no-print sticky top-0 z-20 border-b border-slate-200/80 bg-[#f7f4ed]/90 backdrop-blur">
@@ -124,8 +130,7 @@ export function Toolbar({
             <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 hidden w-72 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700 shadow-xl group-hover:block">
               <div className="font-semibold text-slate-900">Shortcuts</div>
               <div className="mt-2 space-y-1">
-                <div>Cmd/Ctrl+Enter → Tailor &amp; Generate</div>
-                <div className="text-slate-500">Quick Apply → Propose JD edits for review-first changes</div>
+                <div>Cmd/Ctrl+Enter → Send chat</div>
                 <div>Cmd/Ctrl+D → Download PDF</div>
                 <div>Cmd/Ctrl+Shift+C → Copy plain text</div>
                 <div>Escape → Close modal</div>
@@ -173,6 +178,26 @@ export function Toolbar({
           >
             Reset to Master
           </button>
+          {onPickPhoto ? (
+            <button
+              type="button"
+              onClick={onPickPhoto}
+              disabled={disabled}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Photo…
+            </button>
+          ) : null}
+          {hasPhoto && onRemovePhoto ? (
+            <button
+              type="button"
+              onClick={onRemovePhoto}
+              disabled={disabled}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Remove photo
+            </button>
+          ) : null}
           <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
             <span className="font-medium text-slate-500">Font size: {cvFontSize}</span>
             <select
