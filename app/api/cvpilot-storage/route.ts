@@ -145,7 +145,9 @@ export async function PATCH(request: Request) {
         }
 
         if ("workingCV" in body) {
-          const shouldIgnoreStaleWorkingCv = isKnownStaleBackendCv(body.workingCV);
+          const isExplicitMasterAndWorkingPair = "masterCV" in body;
+          const shouldIgnoreStaleWorkingCv =
+            !isExplicitMasterAndWorkingPair && isKnownStaleBackendCv(body.workingCV);
 
           if (!shouldIgnoreStaleWorkingCv) {
             await writeJsonFile(files.workingCV, body.workingCV ?? null);

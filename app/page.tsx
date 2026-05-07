@@ -487,7 +487,7 @@ export default function HomePage() {
   const storedPhotoRef = useRef("");
   const resumeRef = useRef<ResumeData>(sampleResume);
   const loadGenerationRef = useRef(0);
-  const [importTarget, setImportTarget] = useState<"working" | "master">("working");
+  const importTargetRef = useRef<"working" | "master">("working");
   const [resume, setResume] = useState<ResumeData>(sampleResume);
   const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
   const [selectedVersion, setSelectedVersion] = useState(versions[0]);
@@ -931,7 +931,7 @@ export default function HomePage() {
   }, []);
 
   const handleImportClick = (target: "working" | "master" = "working") => {
-    setImportTarget(target);
+    importTargetRef.current = target;
     fileInputRef.current?.click();
   };
 
@@ -945,7 +945,7 @@ export default function HomePage() {
       const text = await file.text();
       const parsed = normalizeResumeInput(JSON.parse(text));
 
-      if (importTarget === "master") {
+      if (importTargetRef.current === "master") {
         await persistMasterCV(parsed);
       } else {
         setResume(parsed);
