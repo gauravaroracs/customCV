@@ -121,6 +121,16 @@ function compactFilenamePart(value: string, fallback: string) {
   return value.replace(/[^a-z0-9]+/gi, "").trim() || fallback;
 }
 
+function withoutDownloadOnlyFields(cv: ResumeData): ResumeData {
+  return {
+    ...cv,
+    personal: {
+      ...cv.personal,
+      photoUrl: ""
+    }
+  };
+}
+
 function parseStoredJson<T>(value: string | null, fallback: T): T {
   if (!value) {
     return fallback;
@@ -898,7 +908,7 @@ export default function HomePage() {
 
   const downloadResumeJson = useCallback(() => {
     downloadTextFile(
-      JSON.stringify(resume, null, 2),
+      JSON.stringify(withoutDownloadOnlyFields(resume), null, 2),
       getResumeJsonFilename(),
       "application/json"
     );
