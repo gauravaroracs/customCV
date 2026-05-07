@@ -8,6 +8,7 @@ export const sampleResume: ResumeData = {
     location: "Darmstadt, Germany",
     linkedin: "linkedin.com/in/gauravaroracs",
     website: "gaurav-arora-cs.vercel.app",
+    github: "https://github.com/gauravaroracs",
     photoUrl: ""
   },
   profile:

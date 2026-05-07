@@ -5,6 +5,7 @@ import {
   Briefcase,
   FolderKanban,
   GraduationCap,
+  Github,
   Languages,
   LucideIcon,
   LocateFixed,
@@ -333,6 +334,12 @@ export function ResumePreview({
                     icon={Linkedin}
                     text={resume.personal.linkedin.replace(/\*\*/g, "")}
                   />
+                  {resume.personal.github && (
+                    <ContactItem
+                      icon={Github}
+                      text={resume.personal.github.replace(/\*\*/g, "")}
+                    />
+                  )}
                   {resume.personal.website && (
                     <ContactItem
                       icon={Globe}

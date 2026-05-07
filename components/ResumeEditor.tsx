@@ -103,7 +103,9 @@ export function ResumeEditor({
               ["email", "Email"],
               ["phone", "Phone"],
               ["location", "Location"],
-              ["linkedin", "LinkedIn"]
+              ["linkedin", "LinkedIn"],
+              ["github", "GitHub"],
+              ["website", "Website"]
             ] as const
           ).map(([key, label]) => (
             <label key={key} className="space-y-1">

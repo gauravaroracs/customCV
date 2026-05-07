@@ -339,6 +339,10 @@ function normalizeResumeInput(value: unknown): ResumeData {
           ? personal.linkedin
           : sampleResume.personal.linkedin,
       website: typeof personal.website === "string" ? personal.website : "",
+      github:
+        typeof personal.github === "string"
+          ? personal.github
+          : sampleResume.personal.github,
       photoUrl: typeof personal.photoUrl === "string" ? personal.photoUrl : ""
     },
     profile: typeof source.profile === "string" ? source.profile : sampleResume.profile,
@@ -429,7 +433,8 @@ function getResumeSyncSignature(cv: ResumeData) {
       phone: cv.personal.phone,
       location: cv.personal.location,
       linkedin: cv.personal.linkedin,
-      website: cv.personal.website
+      website: cv.personal.website,
+      github: cv.personal.github
     },
     profile: cv.profile,
     skills: cv.skills,

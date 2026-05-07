@@ -14,7 +14,9 @@ export function generateATSText(cv: ResumeData) {
     cv.personal.email,
     cv.personal.phone,
     cv.personal.location,
-    cv.personal.linkedin
+    cv.personal.linkedin,
+    cv.personal.github,
+    cv.personal.website
   ];
 
   const skills = Object.entries(cv.skills).flatMap(([group, values]) => [
@@ -94,6 +96,7 @@ export function generateATSHtml(cv: ResumeData): string {
     cv.personal.phone,
     cv.personal.location,
     contactLink(cv.personal.linkedin),
+    contactLink(cv.personal.github),
     contactLink(cv.personal.website)
   ].filter(Boolean).join(" &middot; ");
 

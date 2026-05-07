@@ -15,7 +15,7 @@ export const resumeDataJsonSchema = {
     personal: {
       type: "object",
       additionalProperties: false,
-      required: ["name", "email", "phone", "location", "linkedin", "website", "photoUrl"],
+      required: ["name", "email", "phone", "location", "linkedin", "website", "github", "photoUrl"],
       properties: {
         name: { type: "string" },
         email: { type: "string" },
@@ -23,6 +23,10 @@ export const resumeDataJsonSchema = {
         location: { type: "string" },
         linkedin: { type: "string" },
         website: { type: "string" },
+        github: {
+          type: "string",
+          description: "GitHub profile URL (e.g. https://github.com/username)"
+        },
         photoUrl: {
           type: "string",
           description: "Usually empty here — preview uses the photo from Upload in the toolbar."

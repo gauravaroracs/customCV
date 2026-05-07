@@ -40,7 +40,7 @@ CRITICAL: "newValue" must be the ACTUAL JSON value (array, object, or string) â€
 - If section = "projects":   newValue = [ { name, tech, bullets: [...] }, ... ]
 - If section = "skills":     newValue = { "Programming": [...], "Data": [...], ... }
 - If section = "profile":    newValue = "the profile text as a plain string"
-- If section = "personal":   newValue = { name, email, phone, location, linkedin, website, photoUrl }
+- If section = "personal":   newValue = { name, email, phone, location, linkedin, website, github, photoUrl }
 - If section = "languages":  newValue = [ { name, level }, ... ]
 - If section = "education":  newValue = [ { degree, institution, location, dates, details: [...] }, ... ]
 - If section = "full":       newValue = the complete CV object

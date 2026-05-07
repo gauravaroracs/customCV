@@ -190,7 +190,7 @@ jobDescription: ${body.jobDescription}
                   personal: {
                     type: "object",
                     additionalProperties: false,
-                    required: ["name", "email", "phone", "location", "linkedin", "website", "photoUrl"],
+                    required: ["name", "email", "phone", "location", "linkedin", "website", "github", "photoUrl"],
                     properties: {
                       name: { type: "string" },
                       email: { type: "string" },
@@ -198,6 +198,7 @@ jobDescription: ${body.jobDescription}
                       location: { type: "string" },
                       linkedin: { type: "string" },
                       website: { type: "string" },
+                      github: { type: "string" },
                       photoUrl: { type: "string" }
                     }
                   },
