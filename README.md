@@ -1,11 +1,18 @@
 # Custom CV Builder
 
-A TypeScript-based tool for creating and customizing CVs with reusable components, structured templates, and AI-assisted editing workflows.
+TypeScript-based CV builder for creating structured, customizable resume templates.
 
-## Why I Built This
+## What I Built
 
-CV editing is repetitive, especially when tailoring applications for different roles.
-I built this project to explore how structured resume data, reusable UI components, and AI support can make the process faster and more consistent.
+- A CV editing interface for working with structured resume sections
+- Reusable components for editing, previewing, and organizing CV content
+- A JSON editor backed by a resume schema for more controlled data editing
+- AI-assisted panels for improving resume content and tailoring applications
+
+## Why I Built It
+
+Tailoring a CV for different jobs is repetitive and easy to make inconsistent.
+I built this project to explore how structured resume data, reusable templates, and AI-assisted suggestions can make the application workflow clearer, faster, and easier to improve over time.
 
 ## Features
 
@@ -27,10 +34,17 @@ I built this project to explore how structured resume data, reusable UI componen
 
 ## What I Learned
 
-- Building a larger TypeScript application with typed resume data
-- Designing reusable components for editing structured content
-- Integrating AI-assisted suggestions into a practical workflow
-- Managing live preview and editor state in a Next.js app
+- How to model resume data with TypeScript types and schemas
+- How to design reusable editing components for structured content
+- How AI suggestions can support a real user workflow when paired with human review
+- How to manage editor state, preview state, and application structure in a Next.js project
+
+## Next Improvements
+
+- Add screenshots and a short demo flow to the README
+- Improve template export options for PDF or document workflows
+- Add more validation and clearer error states for resume data
+- Refine the AI workflow for job-specific CV tailoring
 
 ## How to Run
 
@@ -47,7 +61,3 @@ The development server runs on `http://127.0.0.1:3030`.
 - `npm run build` - create a production build
 - `npm run start` - start the production server
 - `npm run lint` - run linting
-
-## Repository Description
-
-A TypeScript-based tool for creating and customizing CVs with reusable components and structured templates.
