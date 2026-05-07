@@ -125,6 +125,13 @@ function getExperienceDates(
   return item.dates;
 }
 
+function getSkillDisplayLabel(skill: string) {
+  return skill
+    .replace(/\*\*/g, "")
+    .replace(/\s*\((Advanced|Intermediate|Basic|Beginner|Expert)\)\s*/gi, "")
+    .trim();
+}
+
 export function ResumePreview({
   resume,
   isLoading = false,
@@ -339,7 +346,7 @@ export function ResumePreview({
 
               <section style={{ marginBottom: "14px" }}>
                 <SectionHeading title="Skills" icon={Wrench} />
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {Object.entries(resume.skills).map(([group, values]) => (
                     <div key={group}>
                       <div
@@ -353,16 +360,34 @@ export function ResumePreview({
                       >
                         {group.replace(/\*\*/g, "")}
                       </div>
-                      <p
+                      <div
                         style={{
-                          fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                          lineHeight: 1.6,
-                          color: "#0d0d0d"
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "4px",
+                          marginTop: "5px"
                         }}
                       >
-                        {renderInlineText(values.join(" • "))}
-                      </p>
+                        {values.map((skill) => (
+                          <span
+                            key={`${group}-${skill}`}
+                            style={{
+                              border: "1px solid #c7d7e4",
+                              borderRadius: "4px",
+                              background: "#f6fafc",
+                              color: "#0d0d0d",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              fontSize: "var(--cv-font-size-sm, 9px)",
+                              fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
+                              lineHeight: 1.25,
+                              padding: "2px 5px"
+                            }}
+                          >
+                            {getSkillDisplayLabel(skill)}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -454,51 +479,6 @@ export function ResumePreview({
               </section>
 
               <section>
-                <SectionHeading title="Projects" icon={FolderKanban} />
-                <div className="space-y-[14px]">
-                  {resume.projects.map((project, index) => (
-                    <article key={`${project.name}-${index}`} style={{ marginBottom: "12px" }}>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          fontSize: "var(--cv-font-size-lg, 10px)",
-                          color: "#111111"
-                        }}
-                      >
-                        {renderInlineText(project.name)}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: 400,
-                          fontStyle: "italic",
-                          color: "#1a6b9e"
-                        }}
-                      >
-                        {renderInlineText(project.tech)}
-                      </div>
-                      <ul
-                        style={{
-                          listStyle: "disc",
-                          paddingLeft: "14px",
-                          fontSize: "var(--cv-font-size, 9.5px)",
-                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                          lineHeight: 1.55,
-                          color: "#0d0d0d"
-                        }}
-                      >
-                        {project.bullets.map((bullet, bulletIndex) => (
-                          <li key={`${project.name}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
-                            {renderInlineText(bullet)}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <section>
                 <SectionHeading title="Education" icon={GraduationCap} />
                 <div className="space-y-[12px]">
                   {resume.education.map((item, index) => (
@@ -548,6 +528,51 @@ export function ResumePreview({
                           ))}
                         </ul>
                       ) : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <SectionHeading title="Projects" icon={FolderKanban} />
+                <div className="space-y-[14px]">
+                  {resume.projects.map((project, index) => (
+                    <article key={`${project.name}-${index}`} style={{ marginBottom: "12px" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          fontSize: "var(--cv-font-size-lg, 10px)",
+                          color: "#111111"
+                        }}
+                      >
+                        {renderInlineText(project.name)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: 400,
+                          fontStyle: "italic",
+                          color: "#1a6b9e"
+                        }}
+                      >
+                        {renderInlineText(project.tech)}
+                      </div>
+                      <ul
+                        style={{
+                          listStyle: "disc",
+                          paddingLeft: "14px",
+                          fontSize: "var(--cv-font-size, 9.5px)",
+                          fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
+                          lineHeight: 1.55,
+                          color: "#0d0d0d"
+                        }}
+                      >
+                        {project.bullets.map((bullet, bulletIndex) => (
+                          <li key={`${project.name}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
+                            {renderInlineText(bullet)}
+                          </li>
+                        ))}
+                      </ul>
                     </article>
                   ))}
                 </div>

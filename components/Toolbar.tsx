@@ -1,6 +1,7 @@
 "use client";
 
 import { RecentApplication } from "@/types/resume";
+import { Pause, Play, RotateCcw, Timer } from "lucide-react";
 
 type ToolbarProps = {
   selectedVersion: string;
@@ -12,6 +13,8 @@ type ToolbarProps = {
   disabled?: boolean;
   masterCvName: string | null; // null = no master CV set yet
   recentApplications: RecentApplication[];
+  applicationElapsedMs: number;
+  isApplicationTimerRunning: boolean;
   hasPhoto?: boolean;
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
@@ -24,6 +27,8 @@ type ToolbarProps = {
   onResetClick: () => void;
   onUpdateMaster: () => void;
   onSelectRecent: (timestamp: string) => void;
+  onToggleApplicationTimer: () => void;
+  onResetApplicationTimer: () => void;
   onPickPhoto?: () => void;
   onRemovePhoto?: () => void;
 };
@@ -39,6 +44,19 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 export function Toolbar({
   selectedVersion,
   versions,
@@ -49,6 +67,8 @@ export function Toolbar({
   disabled = false,
   masterCvName,
   recentApplications,
+  applicationElapsedMs,
+  isApplicationTimerRunning,
   hasPhoto = false,
   onVersionChange,
   onFontSizeChange,
@@ -61,6 +81,8 @@ export function Toolbar({
   onResetClick,
   onUpdateMaster,
   onSelectRecent,
+  onToggleApplicationTimer,
+  onResetApplicationTimer,
   onPickPhoto,
   onRemovePhoto
 }: ToolbarProps) {
@@ -89,6 +111,31 @@ export function Toolbar({
             </button>
           </div>
           )}
+
+          <div className="flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm">
+            <Timer size={15} className="text-blue-700" />
+            <span className="min-w-[48px] font-mono text-sm font-semibold tabular-nums text-slate-900">
+              {formatElapsed(applicationElapsedMs)}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleApplicationTimer}
+              disabled={disabled}
+              title={isApplicationTimerRunning ? "Pause application timer" : "Start application timer"}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isApplicationTimerRunning ? <Pause size={13} /> : <Play size={13} />}
+            </button>
+            <button
+              type="button"
+              onClick={onResetApplicationTimer}
+              disabled={disabled || applicationElapsedMs === 0}
+              title="Reset application timer"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RotateCcw size={13} />
+            </button>
+          </div>
 
           <details className={`relative ${disabled ? "pointer-events-none opacity-60" : ""}`}>
             <summary className="list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300">

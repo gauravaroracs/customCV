@@ -117,30 +117,162 @@ function downloadTextFile(content: string, filename: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+function compactFilenamePart(value: string, fallback: string) {
+  return value.replace(/[^a-z0-9]+/gi, "").trim() || fallback;
+}
+
+function parseStoredJson<T>(value: string | null, fallback: T): T {
+  if (!value) {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function readBrowserStorage(): CvPilotStorageSnapshot {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  const selectedVersion = window.localStorage.getItem(VERSION_STORAGE_KEY) ?? undefined;
+  const cvFontSize =
+    window.localStorage.getItem(FONT_SIZE_STORAGE_KEY) ??
+    window.localStorage.getItem("cvFontSize") ??
+    undefined;
+  const cvFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY) ?? undefined;
+  const cvTopMargin =
+    window.localStorage.getItem("cvTopMargin") ??
+    window.localStorage.getItem("cvPageMargin") ??
+    undefined;
+  const cvBottomMargin =
+    window.localStorage.getItem("cvBottomMargin") ??
+    window.localStorage.getItem("cvPageMargin") ??
+    undefined;
+
+  return {
+    masterCV: parseStoredJson(
+      window.localStorage.getItem(MASTER_CV_STORAGE_KEY) ?? window.localStorage.getItem("masterCV"),
+      null
+    ),
+    workingCV: parseStoredJson(
+      window.localStorage.getItem(WORKING_CV_STORAGE_KEY) ??
+        window.localStorage.getItem("cvpilot-working-cv") ??
+        window.localStorage.getItem(LEGACY_STORAGE_KEY),
+      null
+    ),
+    recentApplications: parseStoredJson(
+      window.localStorage.getItem(RECENT_APPS_STORAGE_KEY) ?? window.localStorage.getItem("recentApps"),
+      []
+    ),
+    photo:
+      window.localStorage.getItem(PHOTO_STORAGE_KEY) ??
+      window.localStorage.getItem("cvPhoto") ??
+      "",
+    settings: {
+      selectedVersion,
+      cvFontSize,
+      cvFontWeight,
+      cvTopMargin,
+      cvBottomMargin
+    }
+  };
+}
+
+function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if ("masterCV" in payload) {
+    window.localStorage.setItem(MASTER_CV_STORAGE_KEY, JSON.stringify(payload.masterCV ?? null));
+  }
+
+  if ("workingCV" in payload) {
+    window.localStorage.setItem(WORKING_CV_STORAGE_KEY, JSON.stringify(payload.workingCV ?? null));
+  }
+
+  if ("recentApplications" in payload) {
+    window.localStorage.setItem(
+      RECENT_APPS_STORAGE_KEY,
+      JSON.stringify(payload.recentApplications ?? [])
+    );
+  }
+
+  if ("photo" in payload) {
+    window.localStorage.setItem(PHOTO_STORAGE_KEY, payload.photo ?? "");
+  }
+
+  if (payload.settings) {
+    const { selectedVersion, cvFontSize, cvFontWeight, cvTopMargin, cvBottomMargin } = payload.settings;
+
+    if (selectedVersion) {
+      window.localStorage.setItem(VERSION_STORAGE_KEY, selectedVersion);
+    }
+
+    if (cvFontSize) {
+      window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, cvFontSize);
+    }
+
+    if (cvFontWeight) {
+      window.localStorage.setItem(FONT_WEIGHT_STORAGE_KEY, cvFontWeight);
+    }
+
+    if (cvTopMargin) {
+      window.localStorage.setItem("cvTopMargin", cvTopMargin);
+    }
+
+    if (cvBottomMargin) {
+      window.localStorage.setItem("cvBottomMargin", cvBottomMargin);
+    }
+  }
+}
+
 async function readRepoStorage(signal?: AbortSignal): Promise<CvPilotStorageSnapshot> {
-  const response = await fetch("/api/cvpilot-storage", {
-    cache: "no-store",
-    ...(signal ? { signal } : {})
-  });
+  let response: Response;
+
+  try {
+    response = await fetch("/api/cvpilot-storage", {
+      cache: "no-store",
+      ...(signal ? { signal } : {})
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw error;
+    }
+
+    return readBrowserStorage();
+  }
 
   if (!response.ok) {
-    throw new Error("Could not read repo-backed CVPilot storage.");
+    return readBrowserStorage();
   }
 
   return response.json() as Promise<CvPilotStorageSnapshot>;
 }
 
 async function patchRepoStorage(payload: CvPilotStorageSnapshot) {
-  const response = await fetch("/api/cvpilot-storage", {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
+  patchBrowserStorage(payload);
+
+  let response: Response;
+
+  try {
+    response = await fetch("/api/cvpilot-storage", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    return;
+  }
 
   if (!response.ok) {
-    throw new Error("Could not write repo-backed CVPilot storage.");
+    return;
   }
 }
 
@@ -371,6 +503,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [isRescoring, setIsRescoring] = useState(false);
   const [isSaveSuccess, setIsSaveSuccess] = useState(false);
+  const [applicationElapsedMs, setApplicationElapsedMs] = useState(0);
+  const [applicationTimerStartedAt, setApplicationTimerStartedAt] = useState<number | null>(null);
 
   const bumpEditorSync = useCallback(() => {
     setEditorSyncNonce((previous) => previous + 1);
@@ -379,6 +513,18 @@ export default function HomePage() {
   useEffect(() => {
     resumeRef.current = resume;
   }, [resume]);
+
+  useEffect(() => {
+    if (applicationTimerStartedAt === null) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      setApplicationElapsedMs(Date.now() - applicationTimerStartedAt);
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [applicationTimerStartedAt]);
 
   useLayoutEffect(() => {
     if (!isHydrated) {
@@ -738,12 +884,41 @@ export default function HomePage() {
   };
 
   const handleExport = () => {
+    downloadResumeJson();
+  };
+
+  const getResumeJsonFilename = useCallback(() => {
+    const name = compactFilenamePart(resume.personal.name, "CV");
+    const company = compactFilenamePart(jobMetadata.company, "");
+    const role = compactFilenamePart(jobMetadata.role, "");
+    const context = [company, role].filter(Boolean).join("_");
+
+    return context ? `${name}_${context}.json` : `${name}_CV.json`;
+  }, [jobMetadata.company, jobMetadata.role, resume.personal.name]);
+
+  const downloadResumeJson = useCallback(() => {
     downloadTextFile(
       JSON.stringify(resume, null, 2),
-      "cvpilot-resume.json",
+      getResumeJsonFilename(),
       "application/json"
     );
-  };
+  }, [getResumeJsonFilename, resume]);
+
+  const handleToggleApplicationTimer = useCallback(() => {
+    setApplicationTimerStartedAt((currentStartedAt) => {
+      if (currentStartedAt !== null) {
+        setApplicationElapsedMs(Date.now() - currentStartedAt);
+        return null;
+      }
+
+      return Date.now() - applicationElapsedMs;
+    });
+  }, [applicationElapsedMs]);
+
+  const handleResetApplicationTimer = useCallback(() => {
+    setApplicationTimerStartedAt(null);
+    setApplicationElapsedMs(0);
+  }, []);
 
   const handleImportClick = (target: "working" | "master" = "working") => {
     setImportTarget(target);
@@ -912,6 +1087,7 @@ export default function HomePage() {
   };
 
   const downloadPDF = () => {
+    downloadResumeJson();
     const originalTitle = document.title;
     const name = resume.personal.name.replace(/\s+/g, "");
     document.title = `${name}_CV`;
@@ -1067,6 +1243,7 @@ export default function HomePage() {
 
   // ── ATS Print-PDF download ───────────────────────────────────────────────
   const handleDownloadATSPdf = useCallback(() => {
+    downloadResumeJson();
     const originalTitle = document.title;
     const atsPreview = document.getElementById("ats-preview");
     const cvPreview = document.getElementById("cv-preview");
@@ -1122,7 +1299,7 @@ export default function HomePage() {
     window.addEventListener("afterprint", restore, { once: true });
     window.print();
     window.setTimeout(restore, 0);
-  }, [resume, jobMetadata]);
+  }, [downloadResumeJson, resume, jobMetadata]);
 
   // Build the ATS HTML whenever resume changes
   const atsHtml = generateATSHtml(resume);
@@ -1142,6 +1319,8 @@ export default function HomePage() {
         disabled={!isHydrated || isChatLoading}
         masterCvName={hasStoredMasterCV && masterCV ? (masterCV.personal.name || "Set") : null}
         recentApplications={recentApplications}
+        applicationElapsedMs={applicationElapsedMs}
+        isApplicationTimerRunning={applicationTimerStartedAt !== null}
         hasPhoto={Boolean(resume.personal.photoUrl)}
         cvFontSize={cvFontSize}
         cvFontWeight={cvFontWeight}
@@ -1158,6 +1337,8 @@ export default function HomePage() {
         onResetClick={handleResetToMaster}
         onUpdateMaster={handleUpdateMaster}
         onSelectRecent={handleSelectRecent}
+        onToggleApplicationTimer={handleToggleApplicationTimer}
+        onResetApplicationTimer={handleResetApplicationTimer}
         onPickPhoto={() => photoInputRef.current?.click()}
         onRemovePhoto={handlePhotoRemove}
       />

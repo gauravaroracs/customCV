@@ -44,8 +44,8 @@ export function generateATSText(cv: ResumeData) {
     section("SUMMARY", [cv.profile]),
     section("SKILLS", skills),
     section("EXPERIENCE", experience),
-    section("PROJECTS", projects),
     section("EDUCATION", education),
+    section("PROJECTS", projects),
     section("LANGUAGES", languages)
   ]
     .join("\n")
@@ -154,9 +154,9 @@ export function generateATSHtml(cv: ResumeData): string {
   <p style="text-align:center;font-size:11px;margin:0 0 4px 0">${contact}</p>
   ${cv.profile ? section("SUMMARY", `<p>${esc(strip(cv.profile))}</p>`) : ""}
   ${expHtml  ? section("EXPERIENCE", expHtml)  : ""}
-  ${projHtml ? section("PROJECTS",                projHtml) : ""}
   ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
   ${eduHtml  ? section("EDUCATION",               eduHtml)  : ""}
+  ${projHtml ? section("PROJECTS",                projHtml) : ""}
   ${langHtml ? section("LANGUAGES",               `<p>${langHtml}</p>`) : ""}
 </div>`;
 }
