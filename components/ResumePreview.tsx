@@ -55,10 +55,8 @@ function SectionHeading({ title, icon: Icon }: HeadingProps) {
       <div
         style={{
           marginTop: "6px",
-          height: "2px",
           width: "100%",
-          borderRadius: "999px",
-          background: "linear-gradient(90deg, #1a6b9e, #6fa9c8, transparent)"
+          borderTop: "1.5px solid #2b8bc1"
         }}
       />
     </div>
