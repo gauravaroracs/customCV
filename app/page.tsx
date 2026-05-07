@@ -489,6 +489,7 @@ export default function HomePage() {
   const loadGenerationRef = useRef(0);
   const importTargetRef = useRef<"working" | "master">("working");
   const [resume, setResume] = useState<ResumeData>(sampleResume);
+  resumeRef.current = resume;
   const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
   const [selectedVersion, setSelectedVersion] = useState(versions[0]);
   const [editorSyncNonce, setEditorSyncNonce] = useState(0);
@@ -519,10 +520,6 @@ export default function HomePage() {
   const bumpEditorSync = useCallback(() => {
     setEditorSyncNonce((previous) => previous + 1);
   }, []);
-
-  useEffect(() => {
-    resumeRef.current = resume;
-  }, [resume]);
 
   useEffect(() => {
     if (applicationTimerStartedAt === null) {
