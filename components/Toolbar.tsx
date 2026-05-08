@@ -8,6 +8,8 @@ type ToolbarProps = {
   versions: string[];
   cvFontSize: string;
   cvFontWeight: string;
+  cvLineHeight: string;
+  cvSectionGap: string;
   cvTopMargin: string;
   cvBottomMargin: string;
   disabled?: boolean;
@@ -19,6 +21,8 @@ type ToolbarProps = {
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
   onFontWeightChange: (value: string) => void;
+  onLineHeightChange: (value: string) => void;
+  onSectionGapChange: (value: string) => void;
   onTopMarginChange: (value: string) => void;
   onBottomMarginChange: (value: string) => void;
   onImportClick: () => void;
@@ -62,6 +66,8 @@ export function Toolbar({
   versions,
   cvFontSize,
   cvFontWeight,
+  cvLineHeight,
+  cvSectionGap,
   cvTopMargin,
   cvBottomMargin,
   disabled = false,
@@ -73,6 +79,8 @@ export function Toolbar({
   onVersionChange,
   onFontSizeChange,
   onFontWeightChange,
+  onLineHeightChange,
+  onSectionGapChange,
   onTopMarginChange,
   onBottomMarginChange,
   onImportClick,
@@ -96,16 +104,16 @@ export function Toolbar({
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">CVPilot</h1>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
           {/* Show pill only when a master CV has been set */}
           {masterCvName && (
-          <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 shadow-sm">
+          <div className="cursor-pointer rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 shadow-sm">
             <span className="font-medium">Master CV: {masterCvName} ✓</span>
             <button
               type="button"
               onClick={onUpdateMaster}
               disabled={disabled}
-              className="ml-2 font-semibold text-emerald-700 transition hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="ml-2 cursor-pointer font-semibold text-emerald-700 transition hover:text-emerald-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Update
             </button>
@@ -122,7 +130,7 @@ export function Toolbar({
               onClick={onToggleApplicationTimer}
               disabled={disabled}
               title={isApplicationTimerRunning ? "Pause application timer" : "Start application timer"}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isApplicationTimerRunning ? <Pause size={13} /> : <Play size={13} />}
             </button>
@@ -131,14 +139,14 @@ export function Toolbar({
               onClick={onResetApplicationTimer}
               disabled={disabled || applicationElapsedMs === 0}
               title="Reset application timer"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RotateCcw size={13} />
             </button>
           </div>
 
           <details className={`relative ${disabled ? "pointer-events-none opacity-60" : ""}`}>
-            <summary className="list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300">
+            <summary className="cursor-pointer list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300">
               Recent
             </summary>
             <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
@@ -170,7 +178,7 @@ export function Toolbar({
             <button
               type="button"
               disabled={disabled}
-              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
+              className="cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300"
             >
               ?
             </button>
@@ -191,7 +199,7 @@ export function Toolbar({
               value={selectedVersion}
               disabled={disabled}
               onChange={(event) => onVersionChange(event.target.value)}
-              className="bg-transparent outline-none disabled:cursor-not-allowed"
+              className="cursor-pointer bg-transparent outline-none disabled:cursor-not-allowed"
             >
               {versions.map((version) => (
                 <option key={version} value={version}>
@@ -205,7 +213,7 @@ export function Toolbar({
             type="button"
             onClick={onImportClick}
             disabled={disabled}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Import JSON
           </button>
@@ -213,7 +221,7 @@ export function Toolbar({
             type="button"
             onClick={onExportClick}
             disabled={disabled}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Export JSON
           </button>
@@ -221,7 +229,7 @@ export function Toolbar({
             type="button"
             onClick={onResetClick}
             disabled={disabled}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Reset to Master
           </button>
@@ -230,7 +238,7 @@ export function Toolbar({
               type="button"
               onClick={onPickPhoto}
               disabled={disabled}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Photo…
             </button>
@@ -240,7 +248,7 @@ export function Toolbar({
               type="button"
               onClick={onRemovePhoto}
               disabled={disabled}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Remove photo
             </button>
@@ -251,7 +259,7 @@ export function Toolbar({
               value={cvFontSize}
               disabled={disabled}
               onChange={(event) => onFontSizeChange(event.target.value)}
-              className="bg-transparent outline-none disabled:cursor-not-allowed"
+              className="cursor-pointer bg-transparent outline-none disabled:cursor-not-allowed"
             >
               <option value="9px">9px (Compact — fits dense content)</option>
               <option value="9.5px">9.5px (Default — recommended)</option>
@@ -266,7 +274,7 @@ export function Toolbar({
               value={cvFontWeight}
               disabled={disabled}
               onChange={(event) => onFontWeightChange(event.target.value)}
-              className="bg-transparent outline-none disabled:cursor-not-allowed"
+              className="cursor-pointer bg-transparent outline-none disabled:cursor-not-allowed"
             >
               <option value="300">Light</option>
               <option value="400">Regular</option>
@@ -274,13 +282,39 @@ export function Toolbar({
               <option value="500">Semibold</option>
             </select>
           </label>
+          <label className="flex min-w-[210px] items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="min-w-[72px] font-medium text-slate-500">Line {cvLineHeight}</span>
+            <input
+              type="range"
+              min="1.35"
+              max="1.85"
+              step="0.05"
+              value={cvLineHeight}
+              disabled={disabled}
+              onChange={(event) => onLineHeightChange(event.target.value)}
+              className="h-2 w-24 cursor-pointer accent-blue-700 disabled:cursor-not-allowed"
+            />
+          </label>
+          <label className="flex min-w-[222px] items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="min-w-[82px] font-medium text-slate-500">Sections {cvSectionGap}px</span>
+            <input
+              type="range"
+              min="8"
+              max="24"
+              step="1"
+              value={cvSectionGap}
+              disabled={disabled}
+              onChange={(event) => onSectionGapChange(event.target.value)}
+              className="h-2 w-24 cursor-pointer accent-blue-700 disabled:cursor-not-allowed"
+            />
+          </label>
           <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
             <span className="font-medium text-slate-500">Top ↑</span>
             <select
               value={cvTopMargin}
               disabled={disabled}
               onChange={(event) => onTopMarginChange(event.target.value)}
-              className="bg-transparent outline-none disabled:cursor-not-allowed"
+              className="cursor-pointer bg-transparent outline-none disabled:cursor-not-allowed"
             >
               <option value="4px">4px</option>
               <option value="8px">8px</option>
@@ -297,7 +331,7 @@ export function Toolbar({
               value={cvBottomMargin}
               disabled={disabled}
               onChange={(event) => onBottomMarginChange(event.target.value)}
-              className="bg-transparent outline-none disabled:cursor-not-allowed"
+              className="cursor-pointer bg-transparent outline-none disabled:cursor-not-allowed"
             >
               <option value="4px">4px</option>
               <option value="8px">8px</option>
@@ -312,7 +346,7 @@ export function Toolbar({
             type="button"
             onClick={onCopyPlainText}
             disabled={disabled}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Copy text
           </button>

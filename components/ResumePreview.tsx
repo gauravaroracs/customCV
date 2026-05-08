@@ -25,6 +25,8 @@ type ResumePreviewProps = {
   isLoading?: boolean;
   cvFontSize: string;
   cvFontWeight: string;
+  cvLineHeight: string;
+  cvSectionGap: string;
   cvTopMargin?: string;
   cvBottomMargin?: string;
   onOverflowChange?: (overflowAmount: number) => void;
@@ -37,7 +39,7 @@ type HeadingProps = {
 
 function SectionHeading({ title, icon: Icon }: HeadingProps) {
   return (
-    <div style={{ marginBottom: "12px" }}>
+    <div style={{ marginBottom: "calc(var(--cv-section-gap, 14px) * 0.75)" }}>
       <div
         style={{
           display: "flex",
@@ -79,7 +81,7 @@ function ContactItem({
         gap: "8px",
         fontSize: "var(--cv-font-size-sm, 9px)",
         fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-        lineHeight: 1.6,
+        lineHeight: "var(--cv-line-height, 1.6)",
         color: "#0d0d0d"
       }}
     >
@@ -136,6 +138,8 @@ export function ResumePreview({
   isLoading = false,
   cvFontSize,
   cvFontWeight,
+  cvLineHeight,
+  cvSectionGap,
   cvTopMargin = "12px",
   cvBottomMargin = "12px",
   onOverflowChange
@@ -190,7 +194,7 @@ export function ResumePreview({
       observer.disconnect();
       window.removeEventListener("resize", measureOverflow);
     };
-  }, [cvFontSize, onOverflowChange, resume]);
+  }, [cvFontSize, cvLineHeight, cvSectionGap, onOverflowChange, resume]);
 
   const initials = resume.personal.name
     .split(" ")
@@ -230,6 +234,8 @@ export function ResumePreview({
             ["--cv-font-size-xl" as string]: "calc(var(--cv-font-size) + 2px)",
             ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)",
             ["--cv-font-weight" as string]: cvFontWeight,
+            ["--cv-line-height" as string]: cvLineHeight,
+            ["--cv-section-gap" as string]: `${cvSectionGap}px`,
             ["--cv-top-margin" as string]: cvTopMargin,
             ["--cv-bottom-margin" as string]: cvBottomMargin
           } as CSSProperties
@@ -321,7 +327,7 @@ export function ResumePreview({
                 />
               </div>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Contact" icon={UserRound} />
                 <div className="space-y-2">
                   <ContactItem icon={Mail} text={resume.personal.email.replace(/\*\*/g, "")} />
@@ -349,7 +355,7 @@ export function ResumePreview({
                 </div>
               </section>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Skills" icon={Wrench} />
                 <div className="space-y-3">
                   {Object.entries(resume.skills).map(([group, values]) => (
@@ -398,7 +404,7 @@ export function ResumePreview({
                 </div>
               </section>
 
-              <section style={{ marginBottom: "14px" }}>
+              <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Languages" icon={Languages} />
                 <div className="space-y-2">
                   {resume.languages.map((lang) => (
@@ -409,7 +415,7 @@ export function ResumePreview({
                         justifyContent: "space-between",
                         gap: "12px",
                         fontSize: "var(--cv-font-size-sm, 9px)",
-                        lineHeight: 1.6
+                        lineHeight: "var(--cv-line-height, 1.6)"
                       }}
                     >
                       <span style={{ minWidth: "60px", color: "#1a1a1a" }}>
@@ -423,14 +429,14 @@ export function ResumePreview({
               <div style={{ flex: 1 }} />
             </aside>
 
-            <main style={{ paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", width: "62%", display: "flex", flexDirection: "column", flex: 1, rowGap: "14px" }}>
+            <main style={{ paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", width: "62%", display: "flex", flexDirection: "column", flex: 1, rowGap: "var(--cv-section-gap, 14px)" }}>
               <section>
                 <SectionHeading title="Summary" icon={Star} />
                 <p
                   style={{
                     fontSize: "var(--cv-font-size, 9.5px)",
                     fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                    lineHeight: 1.6,
+                    lineHeight: "var(--cv-line-height, 1.6)",
                     color: "#0d0d0d"
                   }}
                 >
@@ -440,9 +446,9 @@ export function ResumePreview({
 
               <section>
                 <SectionHeading title="Experience" icon={Briefcase} />
-                <div className="space-y-[14px]">
+                <div>
                   {resume.experience.map((exp, index) => (
-                    <article key={`${exp.company}-${index}`} style={{ marginBottom: "14px" }}>
+                    <article key={`${exp.company}-${index}`} style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                       <div style={{ fontWeight: 600, fontSize: "var(--cv-font-size-lg, 10px)", color: "#111111", marginBottom: "1px" }}>
                         {getExperienceTitle(exp)}
                       </div>
@@ -468,7 +474,7 @@ export function ResumePreview({
                           paddingLeft: "14px",
                           fontSize: "var(--cv-font-size, 9.5px)",
                           fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                          lineHeight: 1.55,
+                          lineHeight: "var(--cv-line-height, 1.6)",
                           color: "#0d0d0d"
                         }}
                       >
@@ -485,7 +491,7 @@ export function ResumePreview({
 
               <section>
                 <SectionHeading title="Education" icon={GraduationCap} />
-                <div className="space-y-[12px]">
+                <div>
                   {resume.education.map((item, index) => (
                     <article key={`${item.institution}-${index}`}>
                       <div className="flex items-start justify-between gap-3">
@@ -522,7 +528,7 @@ export function ResumePreview({
                             paddingLeft: "14px",
                             fontSize: "var(--cv-font-size, 9.5px)",
                             fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                            lineHeight: 1.55,
+                            lineHeight: "var(--cv-line-height, 1.6)",
                             color: "#0d0d0d"
                           }}
                         >
@@ -540,9 +546,9 @@ export function ResumePreview({
 
               <section>
                 <SectionHeading title="Projects" icon={FolderKanban} />
-                <div className="space-y-[14px]">
+                <div>
                   {resume.projects.map((project, index) => (
-                    <article key={`${project.name}-${index}`} style={{ marginBottom: "12px" }}>
+                    <article key={`${project.name}-${index}`} style={{ marginBottom: "calc(var(--cv-section-gap, 14px) * 0.85)" }}>
                       <div
                         style={{
                           fontWeight: 600,
@@ -568,7 +574,7 @@ export function ResumePreview({
                           paddingLeft: "14px",
                           fontSize: "var(--cv-font-size, 9.5px)",
                           fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
-                          lineHeight: 1.55,
+                          lineHeight: "var(--cv-line-height, 1.6)",
                           color: "#0d0d0d"
                         }}
                       >
