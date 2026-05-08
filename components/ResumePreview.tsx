@@ -496,39 +496,34 @@ export function ResumePreview({
                     <article
                       key={`${item.institution}-${index}`}
                       style={{
-                        marginBottom: "calc(var(--cv-section-gap, 14px) * 1.05)",
-                        paddingTop: index === 0 ? 0 : "calc(var(--cv-section-gap, 14px) * 0.8)",
-                        marginTop: index === 0 ? 0 : "calc(var(--cv-section-gap, 14px) * 0.15)"
+                        marginBottom: "calc(var(--cv-section-gap, 14px) * 1.05)"
                       }}
                     >
-                      <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            fontSize: "var(--cv-font-size-lg, 10px)",
-                            lineHeight: 1.25,
-                            color: "#111111"
-                          }}
-                        >
-                          {renderInlineText(item.degree)}
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: "1px",
-                            fontSize: "var(--cv-font-size, 9.5px)",
-                            fontWeight: 400,
-                            lineHeight: 1.35,
-                            color: "#2a6496"
-                          }}
-                        >
-                          <div>{renderInlineText(item.institution)}</div>
-                          <div style={{ color: "#555555" }}>
-                            {renderInlineText(item.location)}
-                            {item.location && item.dates ? " · " : ""}
-                            {item.dates.replace(/\*\*/g, "")}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: "var(--cv-font-size-lg, 10px)",
+                              color: "#111111"
+                            }}
+                          >
+                            {renderInlineText(item.degree)}
                           </div>
+                          <div
+                            style={{
+                              fontSize: "var(--cv-font-size, 9.5px)",
+                              fontWeight: 400,
+                              fontStyle: "italic",
+                              color: "#2a6496"
+                            }}
+                          >
+                            {renderInlineText(item.institution)} ·{" "}
+                            <span style={{ color: "#555555" }}>{renderInlineText(item.location)}</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: "var(--cv-font-size-sm, 9px)", color: "#1a6b9e" }}>
+                          {item.dates.replace(/\*\*/g, "")}
                         </div>
                       </div>
                       {item.details.length > 0 ? (
