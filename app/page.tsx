@@ -38,6 +38,8 @@ const FONT_SIZE_STORAGE_KEY     = "cvPilot_fontSize";
 const FONT_WEIGHT_STORAGE_KEY   = "cvFontWeight";
 const LINE_HEIGHT_STORAGE_KEY   = "cvPilot_lineHeight";
 const SECTION_GAP_STORAGE_KEY   = "cvPilot_sectionGap";
+const ATS_LINE_HEIGHT_STORAGE_KEY = "cvPilot_atsLineHeight";
+const ATS_SECTION_GAP_STORAGE_KEY = "cvPilot_atsSectionGap";
 const PHOTO_STORAGE_KEY         = "cvPilot_photo";
 const ATS_PRINT_STYLE_ID        = "cvpilot-ats-print-style";
 
@@ -47,6 +49,8 @@ type CvPilotSettings = {
   cvFontWeight?: string;
   cvLineHeight?: string;
   cvSectionGap?: string;
+  atsLineHeight?: string;
+  atsSectionGap?: string;
   cvTopMargin?: string;
   cvBottomMargin?: string;
 };
@@ -160,6 +164,8 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
   const cvFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY) ?? undefined;
   const cvLineHeight = window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
   const cvSectionGap = window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
+  const atsLineHeight = window.localStorage.getItem(ATS_LINE_HEIGHT_STORAGE_KEY) ?? undefined;
+  const atsSectionGap = window.localStorage.getItem(ATS_SECTION_GAP_STORAGE_KEY) ?? undefined;
   const cvTopMargin =
     window.localStorage.getItem("cvTopMargin") ??
     window.localStorage.getItem("cvPageMargin") ??
@@ -194,6 +200,8 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
       cvFontWeight,
       cvLineHeight,
       cvSectionGap,
+      atsLineHeight,
+      atsSectionGap,
       cvTopMargin,
       cvBottomMargin
     }
@@ -231,6 +239,8 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
       cvFontWeight,
       cvLineHeight,
       cvSectionGap,
+      atsLineHeight,
+      atsSectionGap,
       cvTopMargin,
       cvBottomMargin
     } = payload.settings;
@@ -253,6 +263,14 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
 
     if (cvSectionGap) {
       window.localStorage.setItem(SECTION_GAP_STORAGE_KEY, cvSectionGap);
+    }
+
+    if (atsLineHeight) {
+      window.localStorage.setItem(ATS_LINE_HEIGHT_STORAGE_KEY, atsLineHeight);
+    }
+
+    if (atsSectionGap) {
+      window.localStorage.setItem(ATS_SECTION_GAP_STORAGE_KEY, atsSectionGap);
     }
 
     if (cvTopMargin) {
@@ -539,6 +557,8 @@ export default function HomePage() {
   const [cvFontWeight, setCvFontWeight] = useState("400");
   const [cvLineHeight, setCvLineHeight] = useState("1.6");
   const [cvSectionGap, setCvSectionGap] = useState("14");
+  const [atsLineHeight, setAtsLineHeight] = useState("1.25");
+  const [atsSectionGap, setAtsSectionGap] = useState("7");
   const [cvTopMargin, setCvTopMargin] = useState("12px");
   const [cvBottomMargin, setCvBottomMargin] = useState("12px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
@@ -736,6 +756,14 @@ export default function HomePage() {
         const nextFontWeight = repoSettings.cvFontWeight ?? legacyStoredFontWeight ?? undefined;
         const nextLineHeight = repoSettings.cvLineHeight ?? window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
         const nextSectionGap = repoSettings.cvSectionGap ?? window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
+        const nextAtsLineHeight =
+          repoSettings.atsLineHeight ??
+          window.localStorage.getItem(ATS_LINE_HEIGHT_STORAGE_KEY) ??
+          undefined;
+        const nextAtsSectionGap =
+          repoSettings.atsSectionGap ??
+          window.localStorage.getItem(ATS_SECTION_GAP_STORAGE_KEY) ??
+          undefined;
         const nextTopMargin =
           repoSettings.cvTopMargin ?? legacyStoredTopMargin ?? legacyStoredPageMargin ?? undefined;
         const nextBottomMargin =
@@ -783,6 +811,14 @@ export default function HomePage() {
           setCvSectionGap(nextSectionGap);
         }
 
+        if (nextAtsLineHeight) {
+          setAtsLineHeight(nextAtsLineHeight);
+        }
+
+        if (nextAtsSectionGap) {
+          setAtsSectionGap(nextAtsSectionGap);
+        }
+
         if (nextTopMargin) {
           setCvTopMargin(nextTopMargin);
         }
@@ -806,6 +842,8 @@ export default function HomePage() {
               cvFontWeight: nextFontWeight,
               cvLineHeight: nextLineHeight,
               cvSectionGap: nextSectionGap,
+              atsLineHeight: nextAtsLineHeight,
+              atsSectionGap: nextAtsSectionGap,
               cvTopMargin: nextTopMargin,
               cvBottomMargin: nextBottomMargin
             }
@@ -893,6 +931,26 @@ export default function HomePage() {
       setError(saveError instanceof Error ? saveError.message : "The section spacing preference could not be saved.");
     });
   }, [cvSectionGap, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    void patchRepoStorage({ settings: { atsLineHeight } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The ATS line spacing preference could not be saved.");
+    });
+  }, [atsLineHeight, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    void patchRepoStorage({ settings: { atsSectionGap } }).catch((saveError) => {
+      setError(saveError instanceof Error ? saveError.message : "The ATS section spacing preference could not be saved.");
+    });
+  }, [atsSectionGap, isHydrated]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -1372,7 +1430,10 @@ export default function HomePage() {
   }, [downloadResumeJson, resume, jobMetadata]);
 
   // Build the ATS HTML whenever resume changes
-  const atsHtml = generateATSHtml(resume);
+  const atsHtml = generateATSHtml(resume, {
+    lineHeight: atsLineHeight,
+    sectionGap: atsSectionGap
+  });
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -1396,6 +1457,8 @@ export default function HomePage() {
         cvFontWeight={cvFontWeight}
         cvLineHeight={cvLineHeight}
         cvSectionGap={cvSectionGap}
+        atsLineHeight={atsLineHeight}
+        atsSectionGap={atsSectionGap}
         cvTopMargin={cvTopMargin}
         cvBottomMargin={cvBottomMargin}
         onVersionChange={setSelectedVersion}
@@ -1403,6 +1466,8 @@ export default function HomePage() {
         onFontWeightChange={setCvFontWeight}
         onLineHeightChange={setCvLineHeight}
         onSectionGapChange={setCvSectionGap}
+        onAtsLineHeightChange={setAtsLineHeight}
+        onAtsSectionGapChange={setAtsSectionGap}
         onTopMarginChange={setCvTopMargin}
         onBottomMarginChange={setCvBottomMargin}
         onImportClick={() => handleImportClick("working")}

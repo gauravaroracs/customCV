@@ -10,6 +10,8 @@ type ToolbarProps = {
   cvFontWeight: string;
   cvLineHeight: string;
   cvSectionGap: string;
+  atsLineHeight: string;
+  atsSectionGap: string;
   cvTopMargin: string;
   cvBottomMargin: string;
   disabled?: boolean;
@@ -23,6 +25,8 @@ type ToolbarProps = {
   onFontWeightChange: (value: string) => void;
   onLineHeightChange: (value: string) => void;
   onSectionGapChange: (value: string) => void;
+  onAtsLineHeightChange: (value: string) => void;
+  onAtsSectionGapChange: (value: string) => void;
   onTopMarginChange: (value: string) => void;
   onBottomMarginChange: (value: string) => void;
   onImportClick: () => void;
@@ -68,6 +72,8 @@ export function Toolbar({
   cvFontWeight,
   cvLineHeight,
   cvSectionGap,
+  atsLineHeight,
+  atsSectionGap,
   cvTopMargin,
   cvBottomMargin,
   disabled = false,
@@ -81,6 +87,8 @@ export function Toolbar({
   onFontWeightChange,
   onLineHeightChange,
   onSectionGapChange,
+  onAtsLineHeightChange,
+  onAtsSectionGapChange,
   onTopMarginChange,
   onBottomMarginChange,
   onImportClick,
@@ -305,6 +313,32 @@ export function Toolbar({
               value={cvSectionGap}
               disabled={disabled}
               onChange={(event) => onSectionGapChange(event.target.value)}
+              className="h-2 w-24 cursor-pointer accent-blue-700 disabled:cursor-not-allowed"
+            />
+          </label>
+          <label className="flex min-w-[234px] items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="min-w-[96px] font-medium text-slate-500">ATS Line {atsLineHeight}</span>
+            <input
+              type="range"
+              min="1.05"
+              max="1.6"
+              step="0.05"
+              value={atsLineHeight}
+              disabled={disabled}
+              onChange={(event) => onAtsLineHeightChange(event.target.value)}
+              className="h-2 w-24 cursor-pointer accent-blue-700 disabled:cursor-not-allowed"
+            />
+          </label>
+          <label className="flex min-w-[246px] items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
+            <span className="min-w-[108px] font-medium text-slate-500">ATS Sections {atsSectionGap}px</span>
+            <input
+              type="range"
+              min="4"
+              max="16"
+              step="1"
+              value={atsSectionGap}
+              disabled={disabled}
+              onChange={(event) => onAtsSectionGapChange(event.target.value)}
               className="h-2 w-24 cursor-pointer accent-blue-700 disabled:cursor-not-allowed"
             />
           </label>

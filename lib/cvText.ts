@@ -1,5 +1,10 @@
 import { JobMetadata, ResumeData } from "@/types/resume";
 
+export type ATSLayoutOptions = {
+  lineHeight?: string;
+  sectionGap?: string;
+};
+
 function normalizeSkill(skill: string) {
   return skill.replace(/\(([^)]+)\)/g, " - $1").replace(/\s+/g, " ").trim();
 }
@@ -44,9 +49,9 @@ export function generateATSText(cv: ResumeData) {
   return [
     section("CONTACT", personal),
     section("SUMMARY", [cv.profile]),
-    section("SKILLS", skills),
     section("EXPERIENCE", experience),
     section("EDUCATION", education),
+    section("SKILLS", skills),
     section("LANGUAGES", languages),
     section("PROJECTS", projects)
   ]
@@ -78,7 +83,7 @@ export function getATSPdfTitle(cv: ResumeData, metadata: JobMetadata) {
 }
 
 /** Generate clean single-column ATS-safe HTML for print-to-PDF. */
-export function generateATSHtml(cv: ResumeData): string {
+export function generateATSHtml(cv: ResumeData, options: ATSLayoutOptions = {}): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -100,6 +105,13 @@ export function generateATSHtml(cv: ResumeData): string {
     contactLink(cv.personal.website)
   ].filter(Boolean).join(" &middot; ");
 
+  const lineHeight = options.lineHeight ?? "1.25";
+  const sectionGap = Number(options.sectionGap ?? "7");
+  const sectionHeadingGap = Math.max(2, Math.round(sectionGap * 0.45));
+  const dividerTopGap = Math.max(4, Math.round(sectionGap * 0.85));
+  const dividerBottomGap = Math.max(3, Math.round(sectionGap * 0.55));
+  const listTopGap = Math.max(2, Math.round(sectionGap * 0.3));
+
   const skillsHtml = Object.entries(cv.skills)
     .map(([group, values]) =>
       `<p style="margin:2px 0"><strong>${esc(strip(group))}:</strong> ${esc(values.map(strip).join(", "))}</p>`
@@ -110,11 +122,11 @@ export function generateATSHtml(cv: ResumeData): string {
       `<li style="margin:1px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:7px">
+      <div style="margin-bottom:${sectionGap}px">
         <strong>${esc(strip(exp.role || ""))}</strong><br/>
         ${esc(strip(exp.company || ""))}${exp.location ? " | " + esc(strip(exp.location)) : ""}<br/>
         ${esc(strip(exp.dates || ""))}
-        <ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>
+        <ul style="margin:${listTopGap}px 0 0 16px;padding:0">${bullets}</ul>
       </div>`;
   }).join("");
 
@@ -123,10 +135,10 @@ export function generateATSHtml(cv: ResumeData): string {
       `<li style="margin:1px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:7px">
+      <div style="margin-bottom:${sectionGap}px">
         <strong>${esc(strip(p.name || ""))}</strong>
         ${p.tech ? `<br/><em>${esc(strip(p.tech))}</em>` : ""}
-        <ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>
+        <ul style="margin:${listTopGap}px 0 0 16px;padding:0">${bullets}</ul>
       </div>`;
   }).join("");
 
@@ -135,10 +147,10 @@ export function generateATSHtml(cv: ResumeData): string {
       `<li style="margin:1px 0">${esc(strip(d))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:7px">
+      <div style="margin-bottom:${sectionGap}px">
         <strong>${esc(strip(e.degree || ""))}</strong><br/>
         ${esc(strip(e.institution || ""))}${e.location ? " | " + esc(strip(e.location)) : ""}${e.dates ? " | " + esc(strip(e.dates)) : ""}
-        ${bullets ? `<ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>` : ""}
+        ${bullets ? `<ul style="margin:${listTopGap}px 0 0 16px;padding:0">${bullets}</ul>` : ""}
       </div>`;
   }).join("");
 
@@ -146,28 +158,28 @@ export function generateATSHtml(cv: ResumeData): string {
     .map(l => `${esc(strip(l.name))}: ${esc(strip(l.level))}`)
     .join(" | ");
 
-  const hr = `<hr style="border:none;border-top:1px solid #000;margin:6px 0 4px"/>`;
+  const hr = `<hr style="border:none;border-top:1px solid #000;margin:${dividerTopGap}px 0 ${dividerBottomGap}px"/>`;
 
   const section = (title: string, body: string) =>
-    `<section>${hr}<h2 style="font-size:12px;font-weight:bold;text-transform:uppercase;margin:3px 0;letter-spacing:0">${title}</h2>${body}</section>`;
+    `<section>${hr}<h2 style="font-size:12px;font-weight:bold;text-transform:uppercase;margin:${sectionHeadingGap}px 0;letter-spacing:0">${title}</h2>${body}</section>`;
 
   const headerPhoto = cv.personal.photoUrl
     ? `<img src="${esc(cv.personal.photoUrl)}" alt="${esc(strip(cv.personal.name))}" style="width:72px;height:72px;object-fit:cover;object-position:center top;border-radius:8px;flex-shrink:0"/>`
     : "";
 
   return `
-<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.25;color:#000;background:none;width:100%">
-  <div style="display:flex;align-items:flex-start;justify-content:${headerPhoto ? "space-between" : "center"};gap:14px;margin:0 0 4px 0">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:${lineHeight};color:#000;background:none;width:100%">
+  <div style="display:flex;align-items:flex-start;justify-content:${headerPhoto ? "flex-start" : "center"};gap:14px;margin:0 0 4px 0">
+    ${headerPhoto}
     <div style="flex:1;min-width:0;text-align:${headerPhoto ? "left" : "center"}">
       <h1 style="font-size:16px;font-weight:bold;text-align:${headerPhoto ? "left" : "center"};margin:0 0 3px 0;letter-spacing:0">${esc(strip(cv.personal.name).toUpperCase())}</h1>
       <p style="text-align:${headerPhoto ? "left" : "center"};font-size:11px;margin:0">${contact}</p>
     </div>
-    ${headerPhoto}
   </div>
   ${cv.profile ? section("SUMMARY", `<p style="margin:0">${esc(strip(cv.profile))}</p>`) : ""}
   ${expHtml  ? section("EXPERIENCE", expHtml)  : ""}
-  ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
   ${eduHtml  ? section("EDUCATION",               eduHtml)  : ""}
+  ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
   ${langHtml ? section("LANGUAGES",               `<p style="margin:0">${langHtml}</p>`) : ""}
   ${projHtml ? section("PROJECTS",                projHtml) : ""}
 </div>`;
