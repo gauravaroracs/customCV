@@ -151,10 +151,19 @@ export function generateATSHtml(cv: ResumeData): string {
   const section = (title: string, body: string) =>
     `<section>${hr}<h2 style="font-size:12px;font-weight:bold;text-transform:uppercase;margin:3px 0;letter-spacing:0">${title}</h2>${body}</section>`;
 
+  const headerPhoto = cv.personal.photoUrl
+    ? `<img src="${esc(cv.personal.photoUrl)}" alt="${esc(strip(cv.personal.name))}" style="width:72px;height:72px;object-fit:cover;object-position:center top;border-radius:8px;flex-shrink:0"/>`
+    : "";
+
   return `
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.25;color:#000;background:none;width:100%">
-  <h1 style="font-size:16px;font-weight:bold;text-align:center;margin:0 0 3px 0;letter-spacing:0">${esc(strip(cv.personal.name).toUpperCase())}</h1>
-  <p style="text-align:center;font-size:11px;margin:0 0 3px 0">${contact}</p>
+  <div style="display:flex;align-items:flex-start;justify-content:${headerPhoto ? "space-between" : "center"};gap:14px;margin:0 0 4px 0">
+    <div style="flex:1;min-width:0;text-align:${headerPhoto ? "left" : "center"}">
+      <h1 style="font-size:16px;font-weight:bold;text-align:${headerPhoto ? "left" : "center"};margin:0 0 3px 0;letter-spacing:0">${esc(strip(cv.personal.name).toUpperCase())}</h1>
+      <p style="text-align:${headerPhoto ? "left" : "center"};font-size:11px;margin:0">${contact}</p>
+    </div>
+    ${headerPhoto}
+  </div>
   ${cv.profile ? section("SUMMARY", `<p style="margin:0">${esc(strip(cv.profile))}</p>`) : ""}
   ${expHtml  ? section("EXPERIENCE", expHtml)  : ""}
   ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
