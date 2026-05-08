@@ -47,8 +47,8 @@ export function generateATSText(cv: ResumeData) {
     section("SKILLS", skills),
     section("EXPERIENCE", experience),
     section("EDUCATION", education),
-    section("PROJECTS", projects),
-    section("LANGUAGES", languages)
+    section("LANGUAGES", languages),
+    section("PROJECTS", projects)
   ]
     .join("\n")
     .trim();
@@ -102,43 +102,43 @@ export function generateATSHtml(cv: ResumeData): string {
 
   const skillsHtml = Object.entries(cv.skills)
     .map(([group, values]) =>
-      `<p style="margin:3px 0"><strong>${esc(strip(group))}:</strong> ${esc(values.map(strip).join(", "))}</p>`
+      `<p style="margin:2px 0"><strong>${esc(strip(group))}:</strong> ${esc(values.map(strip).join(", "))}</p>`
     ).join("");
 
   const expHtml = cv.experience.map(exp => {
     const bullets = exp.bullets.map(b =>
-      `<li style="margin:2px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
+      `<li style="margin:1px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:7px">
         <strong>${esc(strip(exp.role || ""))}</strong><br/>
         ${esc(strip(exp.company || ""))}${exp.location ? " | " + esc(strip(exp.location)) : ""}<br/>
         ${esc(strip(exp.dates || ""))}
-        <ul style="margin:4px 0 0 16px;padding:0">${bullets}</ul>
+        <ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>
       </div>`;
   }).join("");
 
   const projHtml = cv.projects.map(p => {
     const bullets = p.bullets.map(b =>
-      `<li style="margin:2px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
+      `<li style="margin:1px 0">${esc(strip(b.replace(/^[\u2022\-*]\s*/, "")))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:7px">
         <strong>${esc(strip(p.name || ""))}</strong>
         ${p.tech ? `<br/><em>${esc(strip(p.tech))}</em>` : ""}
-        <ul style="margin:4px 0 0 16px;padding:0">${bullets}</ul>
+        <ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>
       </div>`;
   }).join("");
 
   const eduHtml = cv.education.map(e => {
     const bullets = e.details.map(d =>
-      `<li style="margin:2px 0">${esc(strip(d))}</li>`
+      `<li style="margin:1px 0">${esc(strip(d))}</li>`
     ).join("");
     return `
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:7px">
         <strong>${esc(strip(e.degree || ""))}</strong><br/>
         ${esc(strip(e.institution || ""))}${e.location ? " | " + esc(strip(e.location)) : ""}${e.dates ? " | " + esc(strip(e.dates)) : ""}
-        ${bullets ? `<ul style="margin:4px 0 0 16px;padding:0">${bullets}</ul>` : ""}
+        ${bullets ? `<ul style="margin:2px 0 0 16px;padding:0">${bullets}</ul>` : ""}
       </div>`;
   }).join("");
 
@@ -146,20 +146,20 @@ export function generateATSHtml(cv: ResumeData): string {
     .map(l => `${esc(strip(l.name))}: ${esc(strip(l.level))}`)
     .join(" | ");
 
-  const hr = `<hr style="border:none;border-top:1px solid #000;margin:10px 0"/>`;
+  const hr = `<hr style="border:none;border-top:1px solid #000;margin:6px 0 4px"/>`;
 
   const section = (title: string, body: string) =>
-    `<section>${hr}<h2 style="font-size:13px;font-weight:bold;text-transform:uppercase;margin:6px 0;letter-spacing:0">${title}</h2>${body}</section>`;
+    `<section>${hr}<h2 style="font-size:12px;font-weight:bold;text-transform:uppercase;margin:3px 0;letter-spacing:0">${title}</h2>${body}</section>`;
 
   return `
-<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.5;color:#000;background:none;width:100%">
-  <h1 style="font-size:16px;font-weight:bold;text-align:center;margin:0 0 4px 0;letter-spacing:0">${esc(strip(cv.personal.name).toUpperCase())}</h1>
-  <p style="text-align:center;font-size:11px;margin:0 0 4px 0">${contact}</p>
-  ${cv.profile ? section("SUMMARY", `<p>${esc(strip(cv.profile))}</p>`) : ""}
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:1.25;color:#000;background:none;width:100%">
+  <h1 style="font-size:16px;font-weight:bold;text-align:center;margin:0 0 3px 0;letter-spacing:0">${esc(strip(cv.personal.name).toUpperCase())}</h1>
+  <p style="text-align:center;font-size:11px;margin:0 0 3px 0">${contact}</p>
+  ${cv.profile ? section("SUMMARY", `<p style="margin:0">${esc(strip(cv.profile))}</p>`) : ""}
   ${expHtml  ? section("EXPERIENCE", expHtml)  : ""}
   ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
   ${eduHtml  ? section("EDUCATION",               eduHtml)  : ""}
+  ${langHtml ? section("LANGUAGES",               `<p style="margin:0">${langHtml}</p>`) : ""}
   ${projHtml ? section("PROJECTS",                projHtml) : ""}
-  ${langHtml ? section("LANGUAGES",               `<p>${langHtml}</p>`) : ""}
 </div>`;
 }
