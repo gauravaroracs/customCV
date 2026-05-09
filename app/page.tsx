@@ -1032,6 +1032,12 @@ export default function HomePage() {
     );
   }, [getResumeJsonFilename, resume]);
 
+  const promptForResumeJsonDownload = useCallback(() => {
+    if (window.confirm("Do you also want to download the resume JSON backup?")) {
+      downloadResumeJson();
+    }
+  }, [downloadResumeJson]);
+
   const handleToggleApplicationTimer = useCallback(() => {
     setApplicationTimerStartedAt((currentStartedAt) => {
       if (currentStartedAt !== null) {
@@ -1215,7 +1221,7 @@ export default function HomePage() {
   };
 
   const downloadPDF = () => {
-    downloadResumeJson();
+    promptForResumeJsonDownload();
     const originalTitle = document.title;
     const name = resume.personal.name.replace(/\s+/g, "");
     document.title = `${name}_CV`;
@@ -1371,7 +1377,7 @@ export default function HomePage() {
 
   // ── ATS Print-PDF download ───────────────────────────────────────────────
   const handleDownloadATSPdf = useCallback(() => {
-    downloadResumeJson();
+    promptForResumeJsonDownload();
     const originalTitle = document.title;
     const atsPreview = document.getElementById("ats-preview");
     const cvPreview = document.getElementById("cv-preview");
@@ -1427,7 +1433,7 @@ export default function HomePage() {
     window.addEventListener("afterprint", restore, { once: true });
     window.print();
     window.setTimeout(restore, 0);
-  }, [downloadResumeJson, resume, jobMetadata]);
+  }, [promptForResumeJsonDownload, resume, jobMetadata]);
 
   // Build the ATS HTML whenever resume changes
   const atsHtml = generateATSHtml(resume, {
