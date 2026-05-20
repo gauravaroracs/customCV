@@ -60,7 +60,7 @@ STRUCTURAL EDITS — how to handle removals and reductions:
 - "Remove all education details" → section = "education", newValue = education array with empty details arrays.
 - "Merge bullets X and Y" → combine them into one concise bullet, keep the combined one.
 
-Matching by name: Match role/company/location case-insensitively (e.g. "web development intern", "tech intern", "TU Darmstadt").
+Matching by name: Match role/company/location case-insensitively (e.g. "frontend developer", "software intern", "example university").
 
 Rules:
 - Never invent companies, dates, tools, numbers, degrees, or achievements.
