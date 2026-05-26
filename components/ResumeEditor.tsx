@@ -321,6 +321,96 @@ export function ResumeEditor({
       </SectionCard>
 
       <SectionCard
+        title="Awards"
+        description="Awards, hackathons, and recognitions."
+        isSelected={selectedSection === "awards"}
+        isOpen={openSections.awards}
+        disabled={disabled}
+        onSelect={() => onSelectSection("awards")}
+        onToggle={() => onToggleSection("awards")}
+      >
+        <div className="space-y-4">
+          {resume.awards.map((item, index) => (
+            <div key={`${item.title}-${index}`} className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+              <input
+                value={item.title}
+                disabled={disabled}
+                onChange={(event) =>
+                  updateResume(
+                    "awards",
+                    updateArrayItem(resume.awards, index, (entry) => ({
+                      ...entry,
+                      title: event.target.value
+                    }))
+                  )
+                }
+                className={fieldClassName(selectedSection === "awards")}
+              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input
+                  value={item.event}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    updateResume(
+                      "awards",
+                      updateArrayItem(resume.awards, index, (entry) => ({
+                        ...entry,
+                        event: event.target.value
+                      }))
+                    )
+                  }
+                  className={fieldClassName(selectedSection === "awards")}
+                />
+                <input
+                  value={item.organizer}
+                  disabled={disabled}
+                  onChange={(event) =>
+                    updateResume(
+                      "awards",
+                      updateArrayItem(resume.awards, index, (entry) => ({
+                        ...entry,
+                        organizer: event.target.value
+                      }))
+                    )
+                  }
+                  className={fieldClassName(selectedSection === "awards")}
+                />
+              </div>
+              <input
+                value={item.date}
+                disabled={disabled}
+                onChange={(event) =>
+                  updateResume(
+                    "awards",
+                    updateArrayItem(resume.awards, index, (entry) => ({
+                      ...entry,
+                      date: event.target.value
+                    }))
+                  )
+                }
+                className={fieldClassName(selectedSection === "awards")}
+              />
+              <textarea
+                value={item.description}
+                disabled={disabled}
+                onChange={(event) =>
+                  updateResume(
+                    "awards",
+                    updateArrayItem(resume.awards, index, (entry) => ({
+                      ...entry,
+                      description: event.target.value
+                    }))
+                  )
+                }
+                rows={3}
+                className={fieldClassName(selectedSection === "awards")}
+              />
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="Experience"
         description="Core work history and impact bullets."
         isSelected={selectedSection === "experience"}

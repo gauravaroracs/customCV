@@ -13,7 +13,7 @@ You ALWAYS respond with a single JSON object (no markdown fences):
 }
 
 Rules:
-1. The "resume" object must follow the same structure as the input: personal, profile, skills, languages, education, experience, projects.
+1. The "resume" object must follow the same structure as the input: personal, profile, skills, languages, education, awards, experience, projects.
 2. personal.photoUrl must stay exactly as sent (usually empty string) — never put base64 images.
 3. Never invent employers, degrees, dates, or metrics. Only rewrite, reorder, trim, or align wording to the user's request.
 4. If a job description is provided, mirror relevant keywords honestly based on existing experience.

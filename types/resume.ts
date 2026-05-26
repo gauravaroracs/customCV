@@ -4,6 +4,7 @@ export type ResumeSectionKey =
   | "skills"
   | "languages"
   | "education"
+  | "awards"
   | "experience"
   | "projects";
 
@@ -18,6 +19,14 @@ export type EducationItem = {
   location: string;
   dates: string;
   details: string[];
+};
+
+export type AwardItem = {
+  title: string;
+  event: string;
+  organizer: string;
+  date: string;
+  description: string;
 };
 
 export type ExperienceItem = {
@@ -49,6 +58,7 @@ export type ResumeData = {
   skills: Record<string, string[]>;
   languages: LanguageItem[];
   education: EducationItem[];
+  awards: AwardItem[];
   experience: ExperienceItem[];
   projects: ProjectItem[];
 };

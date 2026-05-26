@@ -185,7 +185,7 @@ jobDescription: ${body.jobDescription}
               tailoredCV: {
                 type: "object",
                 additionalProperties: false,
-                required: ["personal", "profile", "skills", "languages", "education", "experience", "projects"],
+                required: ["personal", "profile", "skills", "languages", "education", "awards", "experience", "projects"],
                 properties: {
                   personal: {
                     type: "object",
@@ -238,6 +238,21 @@ jobDescription: ${body.jobDescription}
                         location: { type: "string" },
                         dates: { type: "string" },
                         details: { type: "array", items: { type: "string" } }
+                      }
+                    }
+                  },
+                  awards: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: ["title", "event", "organizer", "date", "description"],
+                      properties: {
+                        title: { type: "string" },
+                        event: { type: "string" },
+                        organizer: { type: "string" },
+                        date: { type: "string" },
+                        description: { type: "string" }
                       }
                     }
                   },

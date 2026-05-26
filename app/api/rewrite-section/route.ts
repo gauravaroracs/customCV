@@ -16,6 +16,7 @@ const SECTION_NAMES = [
   "skills",
   "languages",
   "education",
+  "awards",
   "experience",
   "projects",
   "full"
@@ -43,13 +44,14 @@ CRITICAL: "newValue" must be the ACTUAL JSON value (array, object, or string) �
 - If section = "personal":   newValue = { name, email, phone, location, linkedin, website, github, photoUrl }
 - If section = "languages":  newValue = [ { name, level }, ... ]
 - If section = "education":  newValue = [ { degree, institution, location, dates, details: [...] }, ... ]
+- If section = "awards":     newValue = [ { title, event, organizer, date, description }, ... ]
 - If section = "full":       newValue = the complete CV object
 
 STRATEGY:
 1. If only ONE section changes → set section to that name, newValue = only that section's new value.
 2. If MULTIPLE sections must change → set section = "full", newValue = the complete updated CV object.
 
-Section names: personal | profile | skills | languages | education | experience | projects | full
+Section names: personal | profile | skills | languages | education | awards | experience | projects | full
 
 STRUCTURAL EDITS — how to handle removals and reductions:
 - "Remove the X role/company entry" → section = "experience", newValue = the experience array WITHOUT that entry.
@@ -58,6 +60,7 @@ STRUCTURAL EDITS — how to handle removals and reductions:
 - "Remove the X project" → section = "projects", newValue = the projects array WITHOUT that project.
 - "Remove [skill] from skills" → section = "skills", newValue = skills object with that item removed.
 - "Remove all education details" → section = "education", newValue = education array with empty details arrays.
+- "Add/remove/update an award or hackathon" → section = "awards", newValue = the full updated awards array.
 - "Merge bullets X and Y" → combine them into one concise bullet, keep the combined one.
 
 Matching by name: Match role/company/location case-insensitively (e.g. "frontend developer", "software intern", "example university").

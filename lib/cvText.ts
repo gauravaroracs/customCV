@@ -44,6 +44,11 @@ export function generateATSText(cv: ResumeData) {
     ...item.details.map((detail) => `- ${detail.replace(/^[•*-]\s*/, "")}`)
   ]);
 
+  const awards = cv.awards.flatMap((item) => [
+    `${item.title} | ${item.event} | ${item.organizer} | ${item.date}`,
+    item.description ? `- ${item.description.replace(/^[•*-]\s*/, "")}` : ""
+  ]);
+
   const languages = cv.languages.map((item) => `${item.name} - ${item.level}`);
 
   return [
@@ -51,6 +56,7 @@ export function generateATSText(cv: ResumeData) {
     section("SUMMARY", [cv.profile]),
     section("EXPERIENCE", experience),
     section("EDUCATION", education),
+    section("AWARDS", awards),
     section("SKILLS", skills),
     section("LANGUAGES", languages),
     section("PROJECTS", projects)
@@ -154,6 +160,14 @@ export function generateATSHtml(cv: ResumeData, options: ATSLayoutOptions = {}):
       </div>`;
   }).join("");
 
+  const awardsHtml = cv.awards.map(award => `
+      <div style="margin-bottom:${sectionGap}px">
+        <strong>${esc(strip(award.title || ""))}</strong><br/>
+        ${esc(strip(award.event || ""))}${award.organizer ? " | " + esc(strip(award.organizer)) : ""}${award.date ? " | " + esc(strip(award.date)) : ""}
+        ${award.description ? `<p style="margin:${listTopGap}px 0 0 0">${esc(strip(award.description))}</p>` : ""}
+      </div>`
+  ).join("");
+
   const langHtml = cv.languages
     .map(l => `${esc(strip(l.name))}: ${esc(strip(l.level))}`)
     .join(" | ");
@@ -179,6 +193,7 @@ export function generateATSHtml(cv: ResumeData, options: ATSLayoutOptions = {}):
   ${cv.profile ? section("SUMMARY", `<p style="margin:0">${esc(strip(cv.profile))}</p>`) : ""}
   ${expHtml  ? section("EXPERIENCE", expHtml)  : ""}
   ${eduHtml  ? section("EDUCATION",               eduHtml)  : ""}
+  ${awardsHtml ? section("AWARDS",                awardsHtml) : ""}
   ${skillsHtml ? section("SKILLS",               skillsHtml) : ""}
   ${langHtml ? section("LANGUAGES",               `<p style="margin:0">${langHtml}</p>`) : ""}
   ${projHtml ? section("PROJECTS",                projHtml) : ""}

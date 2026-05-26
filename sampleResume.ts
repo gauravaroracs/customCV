@@ -69,6 +69,16 @@ export const sampleResume: ResumeData = {
       details: ["Graduated with distinction"]
     }
   ],
+  awards: [
+    {
+      title: "3rd Place — Applied AI Hackathon",
+      event: "Student software engineering challenge",
+      organizer: "Example AI Lab",
+      date: "2026",
+      description:
+        "Built a working prototype with data parsing, simulation, and concise operator briefings."
+    }
+  ],
   experience: [
     {
       role: "Full-Stack Developer",

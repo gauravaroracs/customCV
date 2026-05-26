@@ -17,6 +17,7 @@ export function applyCvProposals(base: ResumeData, proposals: CvEditProposal[]):
       ...education,
       details: [...education.details]
     })),
+    awards: base.awards.map((award) => ({ ...award })),
     experience: base.experience.map((experience) => ({
       ...experience,
       bullets: [...experience.bullets]

@@ -422,6 +422,18 @@ function normalizeResumeInput(value: unknown): ResumeData {
               : []
         }))
       : sampleResume.education,
+    awards: Array.isArray(source.awards)
+      ? source.awards.map((item) => {
+          const entry = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+          return {
+            title: String(entry.title ?? ""),
+            event: String(entry.event ?? ""),
+            organizer: String(entry.organizer ?? ""),
+            date: String(entry.date ?? ""),
+            description: String(entry.description ?? "")
+          };
+        })
+      : sampleResume.awards,
     experience: Array.isArray(source.experience)
       ? source.experience.map((item) => {
           const entry = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
@@ -482,6 +494,7 @@ function getResumeSyncSignature(cv: ResumeData) {
     skills: cv.skills,
     languages: cv.languages,
     education: cv.education,
+    awards: cv.awards,
     experience: cv.experience,
     projects: cv.projects
   });

@@ -12,6 +12,7 @@ import {
   Mail,
   Phone,
   Star,
+  Trophy,
   UserRound,
   Wrench,
   Linkedin,
@@ -548,6 +549,60 @@ export function ResumePreview({
                   ))}
                 </div>
               </section>
+
+              {resume.awards.length > 0 ? (
+                <section>
+                  <SectionHeading title="Awards" icon={Trophy} />
+                  <div>
+                    {resume.awards.map((award, index) => (
+                      <article key={`${award.title}-${index}`} style={{ marginBottom: "calc(var(--cv-section-gap, 14px) * 0.85)" }}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: "var(--cv-font-size-lg, 10px)",
+                                color: "#111111"
+                              }}
+                            >
+                              {renderInlineText(award.title)}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "var(--cv-font-size, 9.5px)",
+                                fontWeight: 400,
+                                fontStyle: "italic",
+                                color: "#2a6496"
+                              }}
+                            >
+                              {renderInlineText(award.event)}
+                              {award.organizer ? (
+                                <span style={{ color: "#555555" }}> · {renderInlineText(award.organizer)}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "var(--cv-font-size-sm, 9px)", color: "#1a6b9e" }}>
+                            {award.date.replace(/\*\*/g, "")}
+                          </div>
+                        </div>
+                        {award.description ? (
+                          <p
+                            style={{
+                              marginTop: "3px",
+                              fontSize: "var(--cv-font-size, 9.5px)",
+                              fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
+                              lineHeight: "var(--cv-line-height, 1.6)",
+                              color: "#0d0d0d"
+                            }}
+                          >
+                            {renderInlineText(award.description)}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <section>
                 <SectionHeading title="Projects" icon={FolderKanban} />
