@@ -21,6 +21,7 @@ I built this project to explore how structured resume data, reusable templates, 
 - JSON editor backed by a resume schema
 - AI panel for generating and improving CV content
 - Quick apply workflow for tailoring applications
+- Cover letter generator and editor tied to the current CV and job description
 
 ## Tech Stack
 
@@ -43,6 +44,7 @@ I built this project to explore how structured resume data, reusable templates, 
 
 - Add screenshots and a short demo flow to the README
 - Improve template export options for PDF or document workflows
+- Add richer cover letter export formats
 - Add more validation and clearer error states for resume data
 - Refine the AI workflow for job-specific CV tailoring
 

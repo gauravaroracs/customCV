@@ -84,6 +84,19 @@ export type JobMetadata = {
   location: string;
 };
 
+export type CoverLetterRequest = {
+  resume: ResumeData;
+  jobDescription?: string;
+  metadata?: JobMetadata;
+  existingDraft?: string;
+};
+
+export type CoverLetterResponse = {
+  coverLetter: string;
+  highlights: string[];
+  warnings: string[];
+};
+
 export type TailorRequest = {
   masterCV: ResumeData;
   jobDescription: string;

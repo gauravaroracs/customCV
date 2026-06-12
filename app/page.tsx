@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CoverLetterPanel } from "@/components/CoverLetterPanel";
 import { MasterCvModal } from "@/components/MasterCvModal";
-import { CvChatPanel, type CvChatMessage } from "@/components/CvChatPanel";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
 import { generateATSText, generateATSHtml, getATSPdfTitle } from "@/lib/cvText";
@@ -12,8 +12,7 @@ import { sampleResume } from "@/sampleResume";
 import {
   JobMetadata,
   RecentApplication,
-  ResumeData,
-  TailorResponse
+  ResumeData
 } from "@/types/resume";
 
 const CvJsonEditor = dynamic(
@@ -540,8 +539,6 @@ function normalizeRecentApplications(value: unknown): RecentApplication[] {
 export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
-  const generateShortcutRef = useRef<(() => void) | null>(null);
-  const handleCvChatSendRef = useRef<() => Promise<void>>(async () => {});
   const copyShortcutRef = useRef<(() => Promise<void>) | null>(null);
   const downloadPdfRef = useRef<(() => void) | null>(null);
   const storedPhotoRef = useRef("");
@@ -555,12 +552,7 @@ export default function HomePage() {
   const [editorSyncNonce, setEditorSyncNonce] = useState(0);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const [cvChatMessages, setCvChatMessages] = useState<CvChatMessage[]>([]);
-  const [cvChatDraft, setCvChatDraft] = useState("");
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [jobDescription, setJobDescription] = useState("");
   const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
-  const [result, setResult] = useState<TailorResponse | null>(null);
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
@@ -575,9 +567,7 @@ export default function HomePage() {
   const [cvTopMargin, setCvTopMargin] = useState("12px");
   const [cvBottomMargin, setCvBottomMargin] = useState("12px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [isRescoring, setIsRescoring] = useState(false);
-  const [isSaveSuccess, setIsSaveSuccess] = useState(false);
+  const [, setError] = useState<string | null>(null);
   const [applicationElapsedMs, setApplicationElapsedMs] = useState(0);
   const [applicationTimerStartedAt, setApplicationTimerStartedAt] = useState<number | null>(null);
 
@@ -1019,7 +1009,6 @@ export default function HomePage() {
       setHasStoredMasterCV(false);
       setError("The master CV could not be saved in repo storage.");
     }
-    setResult(null);
     setMasterModalMode("update");
     setShowMasterModal(false);
   };
@@ -1081,7 +1070,6 @@ export default function HomePage() {
       } else {
         setResume(parsed);
         bumpEditorSync();
-        setResult(null);
         setError(null);
       }
     } catch {
@@ -1095,14 +1083,12 @@ export default function HomePage() {
     if (!masterCV) {
       setResume(sampleResume);
       bumpEditorSync();
-      setResult(null);
       setError(null);
       return;
     }
 
     setResume(masterCV);
     bumpEditorSync();
-    setResult(null);
     setError(null);
   };
 
@@ -1110,104 +1096,6 @@ export default function HomePage() {
     setMasterModalMode("update");
     setShowMasterModal(true);
   };
-
-  const handleExtractMetadata = async (pastedText: string) => {
-    try {
-      const response = await fetch("/api/extract-job-metadata", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ text: pastedText.slice(0, 500) })
-      });
-
-      const parsed = (await response.json()) as JobMetadata & { error?: string };
-      if (!response.ok) {
-        throw new Error(parsed.error ?? "Failed to extract job metadata.");
-      }
-
-      setJobMetadata({
-        company: parsed.company ?? "",
-        role: parsed.role ?? "",
-        location: parsed.location ?? ""
-      });
-    } catch {
-      // Keep the workflow moving even if metadata extraction fails.
-    }
-  };
-
-  const handleCvChatSend = useCallback(async () => {
-    if (isChatLoading) {
-      return;
-    }
-
-    const text = cvChatDraft.trim();
-    if (!text) {
-      return;
-    }
-
-    const userMessage: CvChatMessage = { role: "user", content: text };
-    const transcript = [...cvChatMessages, userMessage];
-
-    setCvChatDraft("");
-    setCvChatMessages(transcript);
-    setIsChatLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/cv-chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          resume,
-          jobDescription: jobDescription.trim() || undefined,
-          messages: transcript.map((message) => ({ role: message.role, content: message.content }))
-        })
-      });
-
-      const parsed = (await response.json()) as {
-        assistantMessage?: string;
-        resume?: ResumeData;
-        error?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(parsed.error ?? "Chat failed.");
-      }
-
-      if (!parsed.resume || typeof parsed.resume !== "object") {
-        throw new Error("Model did not return a valid resume.");
-      }
-
-      const merged = withStoredPhoto(normalizeResumeInput(parsed.resume), storedPhotoRef.current);
-      setResume(merged);
-      setCvChatMessages([
-        ...transcript,
-        {
-          role: "assistant",
-          content:
-            typeof parsed.assistantMessage === "string"
-              ? parsed.assistantMessage
-              : "Updated your CV JSON."
-        }
-      ]);
-      setResult(null);
-      bumpEditorSync();
-    } catch (chatError) {
-      setError(chatError instanceof Error ? chatError.message : "Chat failed.");
-    } finally {
-      setIsChatLoading(false);
-    }
-  }, [
-    bumpEditorSync,
-    cvChatDraft,
-    cvChatMessages,
-    isChatLoading,
-    jobDescription,
-    resume
-  ]);
 
   const handleSelectRecent = (timestamp: string) => {
     const selectedApplication = recentApplications.find((item) => item.timestamp === timestamp);
@@ -1217,13 +1105,11 @@ export default function HomePage() {
 
     setResume(withStoredPhoto(selectedApplication.tailoredCV, storedPhotoRef.current));
     bumpEditorSync();
-    setJobDescription(selectedApplication.jdSnapshot);
     setJobMetadata({
       company: selectedApplication.company,
       role: selectedApplication.role,
       location: selectedApplication.location
     });
-    setResult(null);
     setError(null);
   };
 
@@ -1242,10 +1128,6 @@ export default function HomePage() {
     await navigator.clipboard.writeText(text);
   };
 
-  handleCvChatSendRef.current = handleCvChatSend;
-  generateShortcutRef.current = () => {
-    void handleCvChatSendRef.current();
-  };
   copyShortcutRef.current = handleCopyPlainText;
   downloadPdfRef.current = downloadPDF;
 
@@ -1257,80 +1139,20 @@ export default function HomePage() {
         setShowMasterModal(false);
       }
 
-      if (hasModifier && event.key === "Enter") {
-        event.preventDefault();
-        if (!isChatLoading) {
-          generateShortcutRef.current?.();
-        }
-      }
-
       if (hasModifier && event.key.toLowerCase() === "d") {
         event.preventDefault();
-        if (!isChatLoading) {
-          void downloadPdfRef.current?.();
-        }
+        void downloadPdfRef.current?.();
       }
 
       if (hasModifier && event.shiftKey && event.key.toLowerCase() === "c") {
         event.preventDefault();
-        if (!isChatLoading) {
-          void copyShortcutRef.current?.();
-        }
+        void copyShortcutRef.current?.();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isChatLoading]);
-
-  const handleRescore = async () => {
-    if (!jobDescription.trim()) {
-      setError("Paste a job description to score against.");
-      return;
-    }
-    setIsRescoring(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/score-cv", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDescription: jobDescription.trim() })
-      });
-      const parsed = (await response.json()) as {
-        matchScore: number;
-        matchBreakdown: { keywords: number; experience: number; skills: number; overall: number };
-        warnings: string[];
-        error?: string;
-      };
-      if (!response.ok) throw new Error(parsed.error ?? "Scoring failed.");
-      // Merge the new score into the existing result (keep changes log), or create a minimal result
-      setResult((current) =>
-        current
-          ? { ...current, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown, warnings: parsed.warnings }
-          : { tailoredCV: resume, changes: [], warnings: parsed.warnings, matchScore: parsed.matchScore, matchBreakdown: parsed.matchBreakdown }
-      );
-    } catch (rescoreError) {
-      setError(rescoreError instanceof Error ? rescoreError.message : "Scoring failed.");
-    } finally {
-      setIsRescoring(false);
-    }
-  };
-
-  const handleSaveApplication = () => {
-    const newEntry: RecentApplication = {
-      id: Date.now(),
-      company: jobMetadata.company || "Unknown company",
-      role: jobMetadata.role || "Untitled role",
-      location: jobMetadata.location || "",
-      timestamp: new Date().toISOString(),
-      tailoredCV: resume,
-      matchScore: result?.matchScore ?? 0,
-      jdSnapshot: jobDescription.slice(0, 500)
-    };
-    setRecentApplications((current) => [newEntry, ...current].slice(0, 10));
-    setIsSaveSuccess(true);
-    setTimeout(() => setIsSaveSuccess(false), 3000);
-  };
+  }, []);
 
   const handlePhotoUpload = async (file: File) => {
     try {
@@ -1344,7 +1166,6 @@ export default function HomePage() {
         }
       }));
       await patchRepoStorage({ photo: photoUrl });
-      setResult(null);
       setError(null);
     } catch (uploadError) {
       setError(
@@ -1367,7 +1188,6 @@ export default function HomePage() {
     void patchRepoStorage({ photo: "" }).catch((saveError) => {
       setError(saveError instanceof Error ? saveError.message : "The photo could not be removed from repo storage.");
     });
-    setResult(null);
     setError(null);
   };
 
@@ -1458,7 +1278,7 @@ export default function HomePage() {
       <Toolbar
         selectedVersion={selectedVersion}
         versions={versions}
-        disabled={!isHydrated || isChatLoading}
+        disabled={!isHydrated}
         masterCvName={hasStoredMasterCV && masterCV ? (masterCV.personal.name || "Set") : null}
         recentApplications={recentApplications}
         applicationElapsedMs={applicationElapsedMs}
@@ -1537,7 +1357,7 @@ export default function HomePage() {
             </div>
             <ResumePreview
               resume={resume}
-              isLoading={isChatLoading}
+              isLoading={false}
               cvFontSize={cvFontSize}
               cvFontWeight={cvFontWeight}
               cvLineHeight={cvLineHeight}
@@ -1564,8 +1384,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={downloadPDF}
-                  disabled={isChatLoading}
-                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg bg-slate-900 px-5 py-4 text-left text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg bg-slate-900 px-5 py-4 text-left text-white shadow-sm transition hover:bg-slate-800"
                 >
                   <span className="text-sm font-bold">⬇ Download PDF</span>
                   <span className="mt-1 text-xs font-semibold text-slate-200">For emailing</span>
@@ -1583,8 +1402,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={handleDownloadATSPdf}
-                  disabled={isChatLoading}
-                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-left text-amber-950 shadow-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex min-h-[96px] w-[210px] flex-col items-start justify-center rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-left text-amber-950 shadow-sm transition hover:bg-amber-100"
                 >
                   <span className="text-sm font-bold">⬇ Download ATS</span>
                   <span className="mt-1 text-xs font-semibold text-amber-900">For job portals</span>
@@ -1598,8 +1416,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => void handleCopyPlainText()}
-                disabled={isChatLoading}
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
                 ⧉ Copy plain text
               </button>
@@ -1607,31 +1424,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        <CvChatPanel
-          messages={cvChatMessages}
-          jobDescription={jobDescription}
-          metadata={jobMetadata}
-          draft={cvChatDraft}
-          isLoading={isChatLoading}
-          isScoring={isRescoring}
-          isSaveSuccess={isSaveSuccess}
-          error={error}
-          onDraftChange={setCvChatDraft}
-          onJobDescriptionChange={setJobDescription}
-          onJobDescriptionPaste={(value) => {
-            void handleExtractMetadata(value);
-          }}
-          onMetadataChange={(key, value) =>
-            setJobMetadata((current) => ({ ...current, [key]: value }))
-          }
-          onSend={() => {
-            void handleCvChatSend();
-          }}
-          onScore={() => {
-            void handleRescore();
-          }}
-          onSaveApplication={handleSaveApplication}
-        />
+        <div className="pt-6">
+          <CoverLetterPanel
+            candidateName={resume.personal.name}
+            company={jobMetadata.company}
+            role={jobMetadata.role}
+          />
+        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import "./print.css";
 
 export const metadata: Metadata = {
   title: "CVPilot",
-  description: "AI-powered CV editor with a premium one-page preview."
+  description: "AI-powered CV and cover letter editor with a premium one-page preview."
 };
 
 export default function RootLayout({

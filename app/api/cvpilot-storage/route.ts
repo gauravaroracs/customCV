@@ -16,6 +16,7 @@ type CvPilotStorage = {
   recentApplications?: unknown[];
   settings?: CvPilotSettings;
   photo?: string;
+  coverLetter?: string;
 };
 
 const storageDir = process.env.VERCEL
@@ -30,7 +31,8 @@ const files = {
   workingCV: "working-cv.json",
   recentApplications: "recent.json",
   settings: "settings.json",
-  photo: "photo.txt"
+  photo: "photo.txt",
+  coverLetter: "cover-letter.txt"
 } as const;
 
 let writeQueue: Promise<unknown> = Promise.resolve();
@@ -93,7 +95,8 @@ async function readStorage(): Promise<CvPilotStorage> {
     workingCV: await readJsonFile(files.workingCV, null),
     recentApplications: await readJsonFile(files.recentApplications, []),
     settings: await readJsonFile(files.settings, {}),
-    photo: await readTextFile(files.photo)
+    photo: await readTextFile(files.photo),
+    coverLetter: await readTextFile(files.coverLetter)
   };
 }
 
@@ -167,6 +170,10 @@ export async function PATCH(request: Request) {
 
         if ("photo" in body) {
           await writeTextFile(files.photo, body.photo ?? "");
+        }
+
+        if ("coverLetter" in body) {
+          await writeTextFile(files.coverLetter, body.coverLetter ?? "");
         }
       });
 
