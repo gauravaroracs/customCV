@@ -1429,6 +1429,7 @@ export default function HomePage() {
             candidateName={resume.personal.name}
             company={jobMetadata.company}
             role={jobMetadata.role}
+            cvFontWeight={cvFontWeight}
           />
         </div>
       </div>
