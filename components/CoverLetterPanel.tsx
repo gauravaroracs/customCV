@@ -171,6 +171,7 @@ function CoverLetterDocument({
   const headingFontPx = bodyFontPx * 1.74;
   const sectionGapPx = parsePx(typography.sectionGap, 14);
   const atsSectionGapPx = parsePx(typography.atsSectionGap, 7);
+  const dateGapPx = parsePx(typography.topMargin, 4);
 
   return (
     <div className="font-serif text-[#111111]">
@@ -208,7 +209,7 @@ function CoverLetterDocument({
             fontSize: bodyFontPx,
             fontWeight: typography.fontWeight,
             lineHeight: typography.lineHeight,
-            marginBottom: sectionGapPx * 2
+            marginBottom: dateGapPx
           }}
         >
           {layout.date}
@@ -277,8 +278,8 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
   const [coverLetterSectionGap, setCoverLetterSectionGap] = useState("14");
   const [coverLetterAtsLineHeight, setCoverLetterAtsLineHeight] = useState("1.25");
   const [coverLetterAtsSectionGap, setCoverLetterAtsSectionGap] = useState("7");
-  const [coverLetterTopMargin, setCoverLetterTopMargin] = useState("12px");
-  const [coverLetterBottomMargin, setCoverLetterBottomMargin] = useState("12px");
+  const [coverLetterTopMargin, setCoverLetterTopMargin] = useState("4px");
+  const [coverLetterBottomMargin, setCoverLetterBottomMargin] = useState("0px");
   const coverLetterPreviewRef = useRef<HTMLDivElement>(null);
 
   const meta = useMemo(() => parseCoverLetterMeta(coverLetterText), [coverLetterText]);
@@ -335,9 +336,10 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
     const headingFontPt = bodyFontPt * 1.72;
     const sectionGapPx = parsePx(typography.sectionGap, 14);
     const atsSectionGapPx = parsePx(typography.atsSectionGap, 7);
-    const pageTopPaddingPx = 48 + parsePx(typography.topMargin, 12);
-    const pageBottomPaddingPx = 48 + parsePx(typography.bottomMargin, 12);
+    const pageTopPaddingPx = 48 + parsePx(typography.topMargin, 4);
+    const pageBottomPaddingPx = 48 + parsePx(typography.bottomMargin, 0);
     const paragraphGapPx = sectionGapPx * 1.1;
+    const dateGapPx = parsePx(typography.topMargin, 4);
 
     printWindow.document.write(`
 <!doctype html>
@@ -356,7 +358,7 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
       h1 { margin: 0; color: #050505; font-size: ${headingFontPt}pt; line-height: 1; font-weight: 700; letter-spacing: -0.01em; }
       .header-rule { margin-top: 7px; border-top: 1px solid #d9d9d9; }
       .contact { margin-top: ${atsSectionGapPx * 2}px; text-align: center; font-size: ${contactFontPt}pt; line-height: ${typography.atsLineHeight}; font-weight: ${typography.fontWeight}; }
-      .date { margin: 0 0 ${sectionGapPx * 2}px; text-align: right; font-size: ${bodyFontPt}pt; line-height: ${typography.lineHeight}; font-weight: ${typography.fontWeight}; }
+      .date { margin: 0 0 ${dateGapPx}px; text-align: right; font-size: ${bodyFontPt}pt; line-height: ${typography.lineHeight}; font-weight: ${typography.fontWeight}; }
       .recipient { margin: 0 0 ${sectionGapPx * 2}px; font-size: ${bodyFontPt}pt; line-height: ${typography.atsLineHeight}; font-weight: ${typography.fontWeight}; }
       .subject { margin: 0 0 ${sectionGapPx * 2}px; text-align: center; font-size: ${bodyFontPt}pt; line-height: ${typography.lineHeight}; font-weight: ${typography.fontWeight}; }
       main { font-size: ${bodyFontPt}pt; line-height: ${typography.lineHeight}; font-weight: ${typography.fontWeight}; }
@@ -510,6 +512,7 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
             onChange={(event) => setCoverLetterBottomMargin(event.target.value)}
             className="cursor-pointer bg-transparent outline-none"
           >
+            <option value="0px">0px</option>
             <option value="4px">4px</option>
             <option value="8px">8px</option>
             <option value="12px">12px</option>
@@ -565,8 +568,8 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
               ref={coverLetterPreviewRef}
               className="mx-auto min-h-[1123px] w-[794px] bg-white px-[60px] py-[60px] shadow-[0_24px_70px_rgba(15,23,42,0.10)] ring-1 ring-slate-200"
               style={{
-                paddingTop: 48 + parsePx(coverLetterTopMargin, 12),
-                paddingBottom: 48 + parsePx(coverLetterBottomMargin, 12)
+                paddingTop: 48 + parsePx(coverLetterTopMargin, 4),
+                paddingBottom: 48 + parsePx(coverLetterBottomMargin, 0)
               }}
             >
               {hasText ? (
