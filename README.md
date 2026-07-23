@@ -14,6 +14,10 @@ TypeScript-based CV builder for creating structured, customizable resume templat
 Tailoring a CV for different jobs is repetitive and easy to make inconsistent.
 I built this project to explore how structured resume data, reusable templates, and AI-assisted suggestions can make the application workflow clearer, faster, and easier to improve over time.
 
+## Related Project
+
+- [JobsAutomation](https://github.com/gauravaroracs/JobsAutomation) - companion automation project for job application workflows
+
 ## Features
 
 - Resume editor with structured CV sections
