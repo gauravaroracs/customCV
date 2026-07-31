@@ -22,6 +22,11 @@ const reviewLabels: Record<JobRecord["review_status"], string> = {
   prepare_requested: "Preparing"
 };
 
+const lifecycleLabels: Record<JobRecord["lifecycle_status"], string> = {
+  active: "Active",
+  inactive: "Inactive"
+};
+
 const scoreClass = (score: number | string | null | undefined) => {
   const value = Number(score ?? 0);
   if (value >= 80) return "bg-emerald-100 text-emerald-800";
@@ -36,14 +41,17 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [includeArchived, setIncludeArchived] = useState(false);
 
   const loadJobs = useCallback(async () => {
     setRefreshing(true);
     try {
-      const response = await fetch("/api/jobs", { cache: "no-store" });
+      const response = await fetch(`/api/jobs?include_archived=${includeArchived ? "1" : "0"}`, { cache: "no-store" });
       const payload = await response.json() as { jobs?: JobRecord[]; error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not load jobs.");
-      setJobs(payload.jobs ?? []);
+      const nextJobs = payload.jobs ?? [];
+      setJobs(nextJobs);
+      setSelectedJob((current) => current ? nextJobs.find((job) => job.id === current.id) ?? null : null);
       setError(null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load jobs.");
@@ -51,7 +59,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [includeArchived]);
 
   useEffect(() => { void loadJobs(); }, [loadJobs]);
 
@@ -84,15 +92,22 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
     void loadExistingApplication();
   }, [onPrepared, selectedJob]);
 
-  const updateJob = async (job: JobRecord, review_status: JobRecord["review_status"]) => {
+  const updateJob = async (
+    job: JobRecord,
+    patch: Partial<Pick<JobRecord, "review_status" | "lifecycle_status" | "inactive_reason">> & { archived?: boolean }
+  ) => {
     const response = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ review_status })
+      body: JSON.stringify(patch)
     });
     if (!response.ok) throw new Error("Could not update the job review status.");
     await loadJobs();
   };
+
+  const selectedJobIsArchived = Boolean(selectedJob?.archived_at);
+  const selectedJobIsInactive = selectedJob?.lifecycle_status === "inactive";
+  const canPrepareSelectedJob = Boolean(selectedJob && !selectedJobIsArchived && !selectedJobIsInactive);
 
   const runPreparation = async () => {
     if (!selectedJob || !masterCV) {
@@ -214,14 +229,24 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
 
       <div className="inbox-layout">
         <div className="job-list-shell">
-          <div className="list-toolbar"><span>Shortlist</span><span className="list-toolbar__hint">{jobs.length ? "Sorted by fit" : "Waiting for n8n"}</span></div>
+          <div className="list-toolbar">
+            <span>Shortlist</span>
+            <span className="list-toolbar__hint">{jobs.length ? "Sorted by fit" : "Waiting for n8n"}</span>
+          </div>
+          <div className="mb-3 flex items-center justify-between gap-3 px-1 text-xs text-slate-500">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
+              <span>Show archived</span>
+            </label>
+            <span>{includeArchived ? "Archived roles included" : "Archived roles hidden"}</span>
+          </div>
           <div className="job-list">
             {loading ? <div className="empty-state"><span className="loading-orb" />Loading your shortlist…</div> : null}
             {!loading && !jobs.length && !error ? <div className="empty-state"><strong>No roles yet</strong><span>Run the n8n discovery workflow to populate your inbox.</span></div> : null}
             {jobs.map((job) => (
               <button key={job.id} type="button" onClick={() => setSelectedJob(job)} className={`job-row ${selectedJob?.id === job.id ? "job-row--selected" : ""}`}>
                 <span className="job-row__marker" />
-                <span className="job-row__body"><strong>{job.role || "Untitled role"}</strong><span>{job.company || "Unknown company"} <i>·</i> {job.location || "Location not specified"}</span><small>{reviewLabels[job.review_status]} {job.priority ? `· ${job.priority}` : ""}</small></span>
+                <span className="job-row__body"><strong>{job.role || "Untitled role"}</strong><span>{job.company || "Unknown company"} <i>·</i> {job.location || "Location not specified"}</span><small>{reviewLabels[job.review_status]} <i>·</i> {lifecycleLabels[job.lifecycle_status]}{job.archived_at ? " · Archived" : ""}{job.priority ? ` · ${job.priority}` : ""}</small></span>
                 <span className={`score-badge ${scoreClass(job.match_score)}`}>{job.match_score ? `${job.match_score}%` : "—"}</span>
               </button>
             ))}
@@ -232,12 +257,34 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           {selectedJob ? <>
             <div className="detail-kicker"><span className="detail-kicker__dot" /> Role signal</div>
             <div className="detail-title-row"><div><h3>{selectedJob.role}</h3><p>{selectedJob.company} <span>·</span> {selectedJob.location}</p></div><div className={`detail-score ${scoreClass(selectedJob.match_score)}`}><strong>{selectedJob.match_score ?? "—"}</strong><span>match</span></div></div>
+            <div className="mb-3 flex flex-wrap gap-2 text-xs font-medium">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{reviewLabels[selectedJob.review_status]}</span>
+              <span className={`rounded-full px-3 py-1 ${selectedJob.lifecycle_status === "active" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{lifecycleLabels[selectedJob.lifecycle_status]}</span>
+              {selectedJob.archived_at ? <span className="rounded-full bg-slate-900 px-3 py-1 text-white">Archived</span> : null}
+            </div>
             {selectedJob.tech_stack ? <div className="tag-cloud">{String(selectedJob.tech_stack).split(",").slice(0, 6).map((tag) => <span key={tag}>{tag.trim()}</span>)}</div> : null}
             <div className="detail-block detail-block--good"><span className="detail-block__label">Why it fits</span><p>{selectedJob.why_good || "No fit note was added for this role."}</p></div>
             <div className="detail-block detail-block--risk"><span className="detail-block__label">Watch for</span><p>{selectedJob.risk || "No risk note was added for this role."}</p></div>
-            <div className="detail-actions"><button type="button" onClick={() => void updateJob(selectedJob, "saved")} className="button button--outline">Save role</button><button type="button" onClick={() => void updateJob(selectedJob, "skipped")} className="button button--ghost">Skip</button>{selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}</div>
-            <button type="button" onClick={() => void runPreparation()} disabled={!masterCV || (preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed")} className="prepare-button"><span>{preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? preparation.step : "Prepare application"}</span><span>→</span></button>
+            <div className="detail-actions">
+              <button type="button" onClick={() => void updateJob(selectedJob, { review_status: "saved" })} className="button button--outline">Save role</button>
+              <button type="button" onClick={() => void updateJob(selectedJob, { review_status: "skipped" })} className="button button--ghost">Skip</button>
+              {selectedJob.lifecycle_status === "active" ? (
+                <button type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "inactive", inactive_reason: "Manually deactivated from inbox" })} className="button button--ghost">Mark inactive</button>
+              ) : (
+                <button type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "active", inactive_reason: "" })} className="button button--outline">Mark active</button>
+              )}
+              {selectedJob.archived_at ? (
+                <button type="button" onClick={() => void updateJob(selectedJob, { archived: false })} className="button button--outline">Restore</button>
+              ) : (
+                <button type="button" onClick={() => void updateJob(selectedJob, { archived: true })} className="button button--ghost">Archive</button>
+              )}
+              {selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}
+            </div>
+            <button type="button" onClick={() => void runPreparation()} disabled={!masterCV || !canPrepareSelectedJob || (preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed")} className="prepare-button"><span>{preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? preparation.step : "Prepare application"}</span><span>→</span></button>
             {!masterCV ? <p className="detail-note">Set a Master CV above before preparing.</p> : null}
+            {selectedJobIsArchived ? <p className="detail-note">Archived roles stay in history but are hidden from the default inbox and cannot be prepared.</p> : null}
+            {selectedJobIsInactive ? <p className="detail-note">This role is marked inactive in the backend. Restore it to active before preparing.</p> : null}
+            {selectedJob.inactive_reason ? <p className="detail-note">Inactive reason: {selectedJob.inactive_reason}</p> : null}
             {preparation.step === "Complete" ? <div className="alert alert--success">✓ Package ready. Your tailored CV and cover letter are loaded below.</div> : null}
             {preparation.error ? <div className="alert alert--error">{preparation.error}</div> : null}
           </> : <div className="detail-empty"><div className="detail-empty__icon">✦</div><strong>Choose a role to inspect</strong><span>Your shortlist and fit notes will appear here.</span></div>}

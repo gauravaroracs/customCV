@@ -26,6 +26,7 @@ export async function POST(request: Request) {
       : NextResponse.json({ error: "Job not found." }, { status: 404 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create application.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = /archived|inactive/i.test(message) ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

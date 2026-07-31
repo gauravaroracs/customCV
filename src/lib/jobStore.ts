@@ -13,6 +13,10 @@ export const APPLICATION_STATUSES = [
 
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
+export const JOB_LIFECYCLE_STATUSES = ["active", "inactive"] as const;
+
+export type JobLifecycleStatus = (typeof JOB_LIFECYCLE_STATUSES)[number];
+
 export type JobInput = {
   job_id: string;
   source?: string;
@@ -38,6 +42,9 @@ export type JobInput = {
 export type JobRecord = JobInput & {
   id: string;
   review_status: "new" | "saved" | "skipped" | "prepare_requested";
+  lifecycle_status: JobLifecycleStatus;
+  inactive_reason: string;
+  archived_at: string | null;
   application_status: ApplicationStatus | null;
   created_at: string;
   updated_at: string;
@@ -100,6 +107,9 @@ async function ensureSchema() {
         recommended_action TEXT NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT '',
         review_status TEXT NOT NULL DEFAULT 'new',
+        lifecycle_status TEXT NOT NULL DEFAULT 'active',
+        inactive_reason TEXT NOT NULL DEFAULT '',
+        archived_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -137,6 +147,12 @@ async function ensureSchema() {
   }
 
   await schemaPromise;
+
+  await getPool().query(`
+    ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS lifecycle_status TEXT NOT NULL DEFAULT 'active';
+    ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS inactive_reason TEXT NOT NULL DEFAULT '';
+    ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+  `);
 }
 
 function text(value: unknown) {
@@ -200,13 +216,16 @@ export async function upsertJob(input: JobInput) {
   return rowToJob(result.rows[0]);
 }
 
-export async function listJobs() {
+export async function listJobs(includeArchived = false) {
   await ensureSchema();
   const result = await getPool().query(`
     SELECT j.*, a.status AS application_status
     FROM cvpilot_jobs j
     LEFT JOIN cvpilot_applications a ON a.job_id = j.id
+    ${includeArchived ? "" : "WHERE j.archived_at IS NULL"}
     ORDER BY
+      CASE WHEN j.archived_at IS NULL THEN 0 ELSE 1 END,
+      CASE WHEN j.lifecycle_status = 'active' THEN 0 ELSE 1 END,
       CASE WHEN j.review_status = 'new' THEN 0 WHEN j.review_status = 'saved' THEN 1 ELSE 2 END,
       COALESCE(j.match_score, 0) DESC, j.updated_at DESC
     LIMIT 200
@@ -229,10 +248,56 @@ export async function updateJobReview(id: string, status: JobRecord["review_stat
   return result.rows[0] ? rowToJob(result.rows[0]) : null;
 }
 
+export async function updateJobState(
+  id: string,
+  patch: Partial<Pick<JobRecord, "review_status" | "lifecycle_status" | "inactive_reason">> & { archived?: boolean }
+) {
+  await ensureSchema();
+  const fields: string[] = [];
+  const values: unknown[] = [id];
+
+  if (patch.review_status) {
+    values.push(patch.review_status);
+    fields.push(`review_status = $${values.length}`);
+  }
+
+  if (patch.lifecycle_status) {
+    values.push(patch.lifecycle_status);
+    fields.push(`lifecycle_status = $${values.length}`);
+    if (patch.lifecycle_status === "active" && !("inactive_reason" in patch)) {
+      fields.push("inactive_reason = ''");
+    }
+  }
+
+  if ("inactive_reason" in patch) {
+    values.push(patch.inactive_reason ?? "");
+    fields.push(`inactive_reason = $${values.length}`);
+  }
+
+  if (typeof patch.archived === "boolean") {
+    fields.push(`archived_at = ${patch.archived ? "NOW()" : "NULL"}`);
+  }
+
+  if (!fields.length) {
+    const current = await getJob(id);
+    return current;
+  }
+
+  fields.push("updated_at = NOW()");
+
+  const result = await getPool().query(
+    `UPDATE cvpilot_jobs SET ${fields.join(", ")} WHERE id = $1 RETURNING *`,
+    values
+  );
+  return result.rows[0] ? rowToJob(result.rows[0]) : null;
+}
+
 export async function createOrGetApplication(jobId: string) {
   await ensureSchema();
   const job = await getJob(jobId);
   if (!job) return null;
+  if (job.archived_at) throw new Error("Archived jobs cannot be prepared.");
+  if (job.lifecycle_status !== "active") throw new Error("Inactive jobs cannot be prepared.");
   const applicationId = `app_${crypto.randomUUID()}`;
   const result = await getPool().query(
     `INSERT INTO cvpilot_applications (id, job_id)
