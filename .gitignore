@@ -11,4 +11,5 @@ dist
 .env.test.local
 .env.production.local
 data/cvpilot/
+storage/cvpilot/
 .vercel

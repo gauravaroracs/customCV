@@ -21,7 +21,7 @@ type CvPilotStorage = {
 
 const storageDir = process.env.VERCEL
   ? path.join("/tmp", "cvpilot")
-  : path.join(process.cwd(), "data", "cvpilot");
+  : path.join(process.cwd(), "storage", "cvpilot");
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

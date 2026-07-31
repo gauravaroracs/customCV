@@ -6,9 +6,10 @@ import { CoverLetterPanel } from "@/components/CoverLetterPanel";
 import { MasterCvModal } from "@/components/MasterCvModal";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
+import { UnifiedJobsPanel } from "@/components/UnifiedJobsPanel";
 import { generateATSText, generateATSHtml, getATSPdfTitle } from "@/lib/cvText";
 import { resumeToEditorJson } from "@/lib/resumeEditorJson";
-import { sampleResume } from "@/sampleResume";
+import { sampleResume } from "@/data/sampleResume";
 import {
   JobMetadata,
   RecentApplication,
@@ -553,6 +554,7 @@ export default function HomePage() {
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
+  const [unifiedCoverLetter, setUnifiedCoverLetter] = useState("");
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
@@ -1113,6 +1115,19 @@ export default function HomePage() {
     setError(null);
   };
 
+  const handleUnifiedApplicationPrepared = useCallback(
+    ({ resume: preparedResume, metadata, coverLetter }: { resume: ResumeData; metadata: JobMetadata; coverLetter: string }) => {
+      const nextResume = withStoredPhoto(normalizeResumeInput(preparedResume), storedPhotoRef.current);
+      setResume(nextResume);
+      setJsonDraft(resumeToEditorJson(nextResume));
+      setJobMetadata(metadata);
+      setUnifiedCoverLetter(coverLetter);
+      setJsonError(null);
+      bumpEditorSync();
+    },
+    [bumpEditorSync]
+  );
+
   const downloadPDF = () => {
     const originalTitle = document.title;
     const name = resume.personal.name.replace(/\s+/g, "");
@@ -1340,6 +1355,8 @@ export default function HomePage() {
       />
 
       <div className="mx-auto max-w-[1800px] space-y-6 px-5 py-6">
+        <UnifiedJobsPanel masterCV={masterCV} onPrepared={handleUnifiedApplicationPrepared} />
+
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start">
           <div className="no-print min-w-0">
             {isHydrated ? (
@@ -1430,6 +1447,7 @@ export default function HomePage() {
             company={jobMetadata.company}
             role={jobMetadata.role}
             cvFontWeight={cvFontWeight}
+            initialText={unifiedCoverLetter}
           />
         </div>
       </div>

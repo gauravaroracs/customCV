@@ -37,6 +37,16 @@ I built this project to explore how structured resume data, reusable templates, 
 - OpenAI API
 - Cursor / AI-assisted development
 
+## Repository Layout
+
+- `src/app` - Next.js routes and API handlers
+- `src/components` - reusable UI panels and editors
+- `src/lib` - data transforms, schema helpers, and storage logic
+- `src/types` - shared TypeScript types
+- `src/data/sampleResume.ts` - starter resume seed data
+- `storage/cvpilot` - local file-backed CV storage used by the app
+- `automation/JobsAutomation` - exported n8n workflow bundle and notes
+
 ## What I Learned
 
 - How to model resume data with TypeScript types and schemas
@@ -60,6 +70,22 @@ npm run dev
 ```
 
 The development server runs on `http://127.0.0.1:3030`.
+
+### Unified job application MVP
+
+The application inbox is backed by Postgres. Set `DATABASE_URL` and
+`N8N_WEBHOOK_SECRET` in `.env.local`, start the Next.js app, and configure the
+n8n discovery workflow to `POST` each accepted job to:
+
+`http://127.0.0.1:3030/api/integrations/n8n/jobs`
+
+Send the secret in the `x-cvpilot-webhook-secret` header. The accepted payload
+uses the existing n8n fields, including `job_id`, `company`, `role`,
+`job_description`, `job_url`, `match_score`, `priority`, `why_good`, and `risk`.
+The app creates the database tables automatically on the first request.
+
+For application-status mirroring, set `N8N_SHEET_SYNC_WEBHOOK_URL` to an n8n
+webhook that updates the matching Google Sheets row by `job_id`.
 
 ## Scripts
 

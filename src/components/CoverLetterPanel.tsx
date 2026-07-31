@@ -1,13 +1,14 @@
 "use client";
 
 import { Copy, Download } from "lucide-react";
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 interface CoverLetterSectionProps {
   candidateName: string;
   company: string;
   role: string;
   cvFontWeight: string;
+  initialText?: string;
 }
 
 type CoverLetterTypography = {
@@ -270,8 +271,8 @@ function CoverLetterDocument({
   );
 }
 
-export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
-  const [coverLetterText, setCoverLetterText] = useState("");
+export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetterSectionProps) {
+  const [coverLetterText, setCoverLetterText] = useState(initialText);
   const [coverLetterFontSize, setCoverLetterFontSize] = useState("9.5px");
   const [coverLetterFontWeight, setCoverLetterFontWeight] = useState(cvFontWeight || "400");
   const [coverLetterLineHeight, setCoverLetterLineHeight] = useState("1.6");
@@ -281,6 +282,12 @@ export function CoverLetterPanel({ cvFontWeight }: CoverLetterSectionProps) {
   const [coverLetterTopMargin, setCoverLetterTopMargin] = useState("4px");
   const [coverLetterBottomMargin, setCoverLetterBottomMargin] = useState("0px");
   const coverLetterPreviewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialText) {
+      setCoverLetterText(initialText);
+    }
+  }, [initialText]);
 
   const meta = useMemo(() => parseCoverLetterMeta(coverLetterText), [coverLetterText]);
   const typography = useMemo(
