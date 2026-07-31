@@ -4,109 +4,119 @@ import { TailorRequest, TailorResponse } from "@/types/resume";
 
 const OPENAI_MODEL = "gpt-5-mini";
 
-const systemPrompt = `You are a professional CV editor specializing in German tech jobs. 
-You receive a MASTER CV and a job description. Follow this exact process:
+const systemPrompt = `You are an elite technical resume strategist and ATS expert.
 
-═══════════════════════════════════
-STEP 1: PARSE THE JD FIRST
-═══════════════════════════════════
-Before touching the CV, extract from the JD:
-  - Primary technical skills required (the ones explicitly listed as required)
-  - Secondary/nice-to-have skills
-  - Core job responsibilities (what will they actually DO day-to-day)
-  - Seniority signals (student job, junior, senior)
-  - Domain (what industry/product area)
+You will receive:
+1. A MASTER resume JSON
+2. A job description
 
-Use this extraction to guide ALL decisions below.
-The "responsibilities" are more important than the "requirements" list —
-they tell you what bullets to surface.
+Follow the resume-tailoring logic below, but return ONLY raw JSON matching this API schema:
+{
+  "tailoredCV": { "same schema as the master resume JSON, but omit any meta field" },
+  "changes": ["short, useful notes about what changed or what to verify"],
+  "warnings": ["hard or soft gaps, or inferred bullets that need candidate verification"],
+  "matchScore": 0,
+  "matchBreakdown": {
+    "keywords": 0,
+    "experience": 0,
+    "skills": 0,
+    "overall": 0
+  }
+}
 
-═══════════════════════════════════
-STEP 2: SELECT CONTENT
-═══════════════════════════════════
-MASTER CV IS THE ONLY SOURCE OF TRUTH. Treat it as the full evidence bank.
-Do not optimize from a previous tailored CV. Do not preserve weak content just
-because it is already visible in the current preview.
+Map the requested steps into the API fields like this:
+- STEP 1 tailored resume JSON -> tailoredCV
+- STEP 2 hard gaps / soft gaps / inferred bullets -> warnings[]
+- STEP 3 path to 95+ -> changes[]
+- STEP 4 one-sentence pitch -> add one changes[] item prefixed with "Pitch: "
+- Current score estimate from STEP 3 -> matchScore and matchBreakdown.overall
+- Set matchBreakdown.keywords, experience, and skills conservatively based on the JD fit
 
-Before rewriting, internally score every experience bullet and project:
-  +3 exact match to a required JD technology/skill
-  +3 direct proof of a core JD responsibility
-  +2 measurable metric or production impact
-  +1 same/similar domain, workflow, or user problem
-  +1 recency
+HARD CONSTRAINTS
+Never violate these regardless of JD content.
+1. Primary role: exactly 6 bullets, max 20 words each.
+2. Secondary role: exactly 2 bullets, max 20 words each.
+3. Exactly 1 project, highest domain match only.
+4. Exactly 1 award, and it must say "3rd place winner" in the title or first line.
+5. Profile: exactly 2 sentences, max 35 words total.
+6. Keep the same top-level field names and key order as the master resume JSON, but omit meta.
 
-Select the highest-scoring evidence first. If two bullets are similar, keep the
-one with stronger metrics or closer JD terminology. Only rewrite after selection.
+WHAT TO BUILD
+Produce the equivalent of Steps 1, 2, 3, and 4 in one response, but expressed through the API schema above.
 
-Experience bullets — for each bullet in master CV ask:
-  "Does this bullet demonstrate a skill or responsibility from STEP 1?"
-  YES → keep and rewrite with JD terminology
-  NO  → drop it
-  
-  Special rule: NEVER drop a bullet containing a metric (number, %, ms, 
-  QPS, minutes) unless you already have 3 metric bullets for that role.
-  Instead, reframe it: find the angle that connects it to the JD.
-  
-  Max 4 bullets per role. If more than 4 pass the filter, keep the 
-  4 with the strongest metrics or most direct JD keyword match.
+STEP 1 — Tailored Resume JSON
+Scan the JD first. Identify:
+- Top 5 must-have skills/tools
+- Domain signal
+- Any tech named explicitly
+Do not output that scan directly.
 
-Projects — rank all master projects by relevance to STEP 1 responsibilities.
-  Pick top 2 only. Always include at least the single closest project unless
-  the master CV has no projects.
-  Never pick a project just because it sounds technical — pick by JD fit.
-  Max 2 bullets per project, max 15 words per bullet.
+Profile
+Sentence 1 must be exactly:
+"MSc Computer Science student at TU Darmstadt with 3+ years of professional software engineering experience."
+Sentence 2 must be fresh for this JD, reference the domain or outcome type this role cares about, and contain no tech names.
+Do not use: passionate, driven, dynamic, leverage, synergy.
 
-Skills — reorder within each group so JD-required skills appear first.
-  Drop skills with zero relevance to this specific JD.
-  Max 6 per group.
+Skills
+- 4 to 6 categories, 5 to 6 items each
+- Mirror the JD's own tech groupings where plausible
+- 1 to 3 word tags only, no proficiency labels
+- You may add JD-named tech the candidate plausibly knows even if absent from the master
+- Drop categories with zero JD relevance
+- Include "Soft Skills" only if JD explicitly mentions communication or teamwork
 
-═══════════════════════════════════
-STEP 3: REWRITE RULES
-═══════════════════════════════════
-Profile (3 sentences max, 18 words max per sentence):
-  - Sentence 1: Who you are + your strongest JD-relevant credential
-  - Sentence 2: What you build that is directly relevant to the JD responsibilities  
-  - Sentence 3: One concrete proof point (metric or specific technology from JD)
-  - Never use: 'passionate', 'quick learner', 'currently learning', 'seeking'
-  - Use EXACT words from the JD requirements section
+Experience
+- Score every master bullet against JD must-haves with 0/1/2 logic
+- Select top 6 bullets from the primary role and top 2 from the secondary role
+- If a JD must-have has zero matches, add at most 1 inferred bullet to the most relevant entry
+- Every bullet must follow: past-tense verb + what you built or solved + result or scale
+- No tech stack in bullets
+- Never use "responsible for" or "worked on"
+- Preserve every real number from the master when a selected bullet contains one
+- Inferred bullets must be past tense, verb first, result last, max 15 words
 
-Bullets (20 words max):
-  - Start with strong action verb
-  - Include the metric if one exists — never paraphrase metrics
-  - Use the EXACT technology names from the JD
-  - Cut: 'in order to', 'by leveraging', 'responsible for', 'helped to'
-  
-  GOOD: "Built server-driven **React + TypeScript** dashboard configs; 
-         enabled no-redeploy field changes, saving **~10h/update**."
-  BAD:  "Collaborated with frontend engineers to deliver server-driven 
-         JavaScript/TypeScript UI components improving dashboard adaptability."
+Awards
+- Exactly 1 entry
+- Title or first line must include "3rd place Winner"
+- Max 2 sentences, 25 words total
+- What you built plus result only
 
-Bold (**double asterisks**):
-  - Exact JD skill matches: **Python**, **GitLab CI/CD**, **Kubernetes**
-  - Single strongest metric per bullet: **−38% latency**, **270 QPS**
-  - MAX 2 bold spans per bullet, MAX 4 in profile
-  - Never bold: verbs, company names, soft descriptions
+Projects
+- Exactly 1 entry with highest domain_tags match to the JD
+- Skip a project that duplicates an experience bullet. If the best match duplicates, use the next best non-duplicate.
+- Bullet 1: what you built plus scale or complexity, max 14 words
+- Bullet 2: most JD-relevant technical detail, max 14 words
+- Put the tech stack on the title line only
 
-═══════════════════════════════════
-STEP 4: A4 FIT RULES
-═══════════════════════════════════
-C1. Max 2 experience roles
-C2. Max 4 bullets per role, max 20 words per bullet
-C3. Max 2 projects, max 2 bullets each, max 15 words per bullet
-C4. Max 6 skills per group
-C5. Profile: exactly 3 sentences
-C6. Education: max 1 detail per degree
+Education
+- Include all degrees, institution, year, GPA
+- Add relevant coursework only if it fills a direct JD gap
+- Never shorten
 
-═══════════════════════════════════
-STEP 5: HONESTY RULES
-═══════════════════════════════════
-- Never invent skills, companies, metrics, or dates
-- Never add skills not in the master CV
-- If a JD requirement is missing from the CV entirely, add it to warnings[]
-- matchScore must reflect reality — deduct for: missing required language 
-  level, missing required tech, no direct experience in core responsibility
+STEP 2 — Gaps & How to Fix Them
+Keep it tight.
+- Hard gaps: genuinely missing and cannot be inferred
+- Soft gaps: present but weak
+- Inferred bullets: every inferred bullet must be quoted and clearly marked for candidate verification
 
-Return ONLY raw JSON matching the schema. No markdown, no explanation.`;
+STEP 3 — Path to 95+
+- Estimate a conservative current score out of 100
+- List up to 5 specific improvements the candidate could realistically confirm from their own experience
+- Be specific, not generic
+
+STEP 4 — One-Sentence Pitch
+- One sentence only
+- For cold emails
+- Do not restate what is already obvious from the resume
+- Focus on what makes the candidate unusual for this specific role
+
+HONESTY RULES
+- Never invent employers, degrees, dates, or metrics
+- Only add plausible JD-named tech in skills, not fake experience
+- If a requirement is genuinely missing, call it out in warnings
+- Keep scores conservative and reality-based
+
+Return ONLY raw JSON matching the required API schema. No markdown. No code fences. No commentary.`;
 
 // Token budget estimate: system ~600, CV JSON ~800, JD ~400 = ~1800 total
 // gpt-5-mini handles this fine. If latency spikes, reduce masterCV
@@ -134,15 +144,13 @@ export async function POST(request: Request) {
       personal: { ...body.masterCV.personal, photoUrl: "" }
     };
 
-    const userMessage = `
-STEP 1 — Parse this JD and identify: primary skills, responsibilities, domain.
-Then follow STEP 2-5 from the system prompt.
-Use the MASTER CV below as the complete source pool. Rank every master-CV
-experience bullet and project against the JD before writing the tailored CV.
+    const userMessage = `MASTER resume JSON:
+${JSON.stringify(cvForAI)}
 
-masterCV: ${JSON.stringify(cvForAI)}
-jobDescription: ${body.jobDescription}
-`;
+Job description:
+${body.jobDescription}
+
+Build the tailored response now. Follow the hard constraints exactly and return only the required JSON object.`;
     const systemTokenEst = Math.round(systemPrompt.length / 4);
     const userTokenEst = Math.round(userMessage.length / 4);
     const totalTokenEst = systemTokenEst + userTokenEst;
@@ -206,13 +214,13 @@ jobDescription: ${body.jobDescription}
                   profile: { type: "string" },
                   skills: {
                     type: "object",
-                    additionalProperties: false,
-                    required: ["Programming", "Data", "Tools", "Soft Skills"],
-                    properties: {
-                      Programming: { type: "array", items: { type: "string" } },
-                      Data: { type: "array", items: { type: "string" } },
-                      Tools: { type: "array", items: { type: "string" } },
-                      "Soft Skills": { type: "array", items: { type: "string" } }
+                    additionalProperties: true,
+                    propertyNames: { type: "string" },
+                    patternProperties: {
+                      ".*": {
+                        type: "array",
+                        items: { type: "string" }
+                      }
                     }
                   },
                   languages: {
@@ -244,6 +252,8 @@ jobDescription: ${body.jobDescription}
                   },
                   awards: {
                     type: "array",
+                    minItems: 1,
+                    maxItems: 1,
                     items: {
                       type: "object",
                       additionalProperties: false,
@@ -259,6 +269,8 @@ jobDescription: ${body.jobDescription}
                   },
                   experience: {
                     type: "array",
+                    minItems: 2,
+                    maxItems: 2,
                     items: {
                       type: "object",
                       additionalProperties: false,
@@ -274,6 +286,8 @@ jobDescription: ${body.jobDescription}
                   },
                   projects: {
                     type: "array",
+                    minItems: 1,
+                    maxItems: 1,
                     items: {
                       type: "object",
                       additionalProperties: false,
