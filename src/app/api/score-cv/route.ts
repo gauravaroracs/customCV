@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { ResumeData, MatchBreakdown } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.1-chat-latest";
+const OPENAI_MODEL = "gpt-5.6-sol";
 
 const systemPrompt = `You are a strict technical recruiter scoring a CV against a job description.
 

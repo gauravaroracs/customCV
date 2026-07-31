@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { JobMetadata } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.1-chat-latest";
+const OPENAI_MODEL = "gpt-5.6-sol";
 
 const systemPrompt =
   'Extract: company, role title, location. Return JSON only: {company, role, location}';

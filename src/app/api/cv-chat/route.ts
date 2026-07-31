@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { ResumeData } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.1-chat-latest";
+const OPENAI_MODEL = "gpt-5.6-sol";
 
 const systemPrompt = `You are CVPilot's CV editor. The user chats to update their CV.
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { ProposeEditsRequest, ProposeEditsResponse } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.1-chat-latest";
+const OPENAI_MODEL = "gpt-5.6-sol";
 
 const proposalItemSchema = {
   type: "object",
