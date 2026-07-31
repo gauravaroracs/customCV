@@ -1354,11 +1354,34 @@ export default function HomePage() {
         className="hidden"
       />
 
-      <div className="mx-auto max-w-[1800px] space-y-6 px-5 py-6">
+      <main className="app-main">
+        <div className="workspace-intro no-print">
+          <div>
+            <span className="eyebrow">Your application cockpit</span>
+            <h2>From shortlist to send-ready.</h2>
+            <p>A focused workspace for deciding which roles deserve your time, then shaping the strongest version of your story.</p>
+          </div>
+          <div className="intro-metrics" aria-label="Workspace steps">
+            <div><strong>01</strong><span>Spot the signal</span></div>
+            <div><strong>02</strong><span>Shape your CV</span></div>
+            <div><strong>03</strong><span>Make the move</span></div>
+          </div>
+        </div>
+
         <UnifiedJobsPanel masterCV={masterCV} onPrepared={handleUnifiedApplicationPrepared} />
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start">
-          <div className="no-print min-w-0">
+        <section id="cv-studio" className="studio-section">
+          <div className="section-heading section-heading--studio no-print">
+            <div>
+              <div className="eyebrow eyebrow--violet">CV studio <span>02</span></div>
+              <h2>Make the evidence easy to believe.</h2>
+              <p>Edit structured resume data on the left. Keep an exact A4 preview in view on the right.</p>
+            </div>
+            <div className="studio-legend"><span><i className="legend-dot legend-dot--green" /> Fits A4</span><span><i className="legend-dot legend-dot--violet" /> Live preview</span></div>
+          </div>
+
+          <div className="studio-grid">
+          <div className="no-print min-w-0 studio-panel">
             {isHydrated ? (
               <CvJsonEditor value={jsonDraft} onChange={setJsonDraft} jsonError={jsonError} />
             ) : (
@@ -1368,8 +1391,8 @@ export default function HomePage() {
             )}
           </div>
 
-          <div className="min-w-0 overflow-x-auto">
-            <div className="no-print mb-3 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-900">
+          <div className="min-w-0 overflow-x-auto studio-preview-column">
+            <div className="no-print preview-tip">
               Save as PDF → Margins: None → Background graphics: ON → Save
             </div>
             <ResumePreview
@@ -1439,9 +1462,10 @@ export default function HomePage() {
               </button>
             </div>
           </div>
-        </div>
+          </div>
+        </section>
 
-        <div className="pt-6">
+        <section id="cover-letter" className="cover-section">
           <CoverLetterPanel
             candidateName={resume.personal.name}
             company={jobMetadata.company}
@@ -1449,8 +1473,8 @@ export default function HomePage() {
             cvFontWeight={cvFontWeight}
             initialText={unifiedCoverLetter}
           />
-        </div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }

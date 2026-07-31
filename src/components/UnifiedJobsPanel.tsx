@@ -198,46 +198,49 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   };
 
   return (
-    <section className="no-print rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-panel">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section id="job-inbox" className="no-print workspace-card inbox-card">
+      <div className="section-heading">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600">Application inbox</div>
-          <h2 className="mt-2 text-2xl font-semibold text-slate-900">Find a job, prepare the package</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">n8n sends jobs here. Select one to run your existing CV, scoring, and cover-letter tools in one workflow.</p>
+          <div className="eyebrow eyebrow--blue">Application inbox <span>{jobs.length ? `${jobs.length} roles` : "Live"}</span></div>
+          <h2>Find a job. Make a case.</h2>
+          <p>Every role that survives your n8n filter lands here. Pick one to see the signal, the risk, and the next move.</p>
         </div>
-        <button type="button" onClick={() => void loadJobs()} disabled={refreshing} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:border-slate-300 disabled:opacity-50">
-          {refreshing ? "Refreshing…" : "Refresh jobs"}
+        <button type="button" onClick={() => void loadJobs()} disabled={refreshing} className="button button--outline">
+          <span className={refreshing ? "spin" : ""}>↻</span> {refreshing ? "Refreshing" : "Refresh inbox"}
         </button>
       </div>
 
-      {error ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{error}<span className="mt-1 block text-xs text-amber-700">Add DATABASE_URL to .env.local and run Postgres to enable the inbox.</span></div> : null}
+      {error ? <div className="alert alert--warning"><strong>Inbox unavailable.</strong> {error}<span>Add DATABASE_URL to the running environment to enable live jobs.</span></div> : null}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="space-y-3">
-          {loading ? <div className="rounded-2xl bg-slate-50 p-6 text-sm text-slate-500">Loading jobs…</div> : null}
-          {!loading && !jobs.length && !error ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">No jobs yet. Run the n8n discovery workflow, then send a job to the CVPilot webhook.</div> : null}
-          {jobs.map((job) => (
-            <button key={job.id} type="button" onClick={() => setSelectedJob(job)} className={`w-full rounded-2xl border p-4 text-left transition ${selectedJob?.id === job.id ? "border-blue-400 bg-blue-50/60 shadow-sm" : "border-slate-200 bg-white hover:border-slate-300"}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><div className="truncate text-sm font-semibold text-slate-900">{job.role || "Untitled role"}</div><div className="mt-1 text-sm text-slate-600">{job.company || "Unknown company"} · {job.location || "Location not specified"}</div></div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${scoreClass(job.match_score)}`}>{job.match_score ? `${job.match_score}%` : "Unscored"}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500"><span className="rounded-full bg-slate-100 px-2 py-1">{reviewLabels[job.review_status]}</span>{job.priority ? <span className="rounded-full bg-slate-100 px-2 py-1">{job.priority}</span> : null}{job.language_requirement ? <span className="rounded-full bg-slate-100 px-2 py-1">{job.language_requirement}</span> : null}</div>
-            </button>
-          ))}
+      <div className="inbox-layout">
+        <div className="job-list-shell">
+          <div className="list-toolbar"><span>Shortlist</span><span className="list-toolbar__hint">{jobs.length ? "Sorted by fit" : "Waiting for n8n"}</span></div>
+          <div className="job-list">
+            {loading ? <div className="empty-state"><span className="loading-orb" />Loading your shortlist…</div> : null}
+            {!loading && !jobs.length && !error ? <div className="empty-state"><strong>No roles yet</strong><span>Run the n8n discovery workflow to populate your inbox.</span></div> : null}
+            {jobs.map((job) => (
+              <button key={job.id} type="button" onClick={() => setSelectedJob(job)} className={`job-row ${selectedJob?.id === job.id ? "job-row--selected" : ""}`}>
+                <span className="job-row__marker" />
+                <span className="job-row__body"><strong>{job.role || "Untitled role"}</strong><span>{job.company || "Unknown company"} <i>·</i> {job.location || "Location not specified"}</span><small>{reviewLabels[job.review_status]} {job.priority ? `· ${job.priority}` : ""}</small></span>
+                <span className={`score-badge ${scoreClass(job.match_score)}`}>{job.match_score ? `${job.match_score}%` : "—"}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+        <div className="job-detail-shell">
           {selectedJob ? <>
-            <div className="flex items-start justify-between gap-3"><div><div className="text-lg font-semibold text-slate-900">{selectedJob.role}</div><div className="text-sm text-slate-600">{selectedJob.company} · {selectedJob.location}</div></div><div className={`rounded-full px-3 py-1 text-sm font-bold ${scoreClass(selectedJob.match_score)}`}>{selectedJob.match_score ?? "—"}</div></div>
-            {selectedJob.why_good ? <div className="mt-4"><div className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">Why it fits</div><p className="mt-1 text-sm leading-6 text-slate-700">{selectedJob.why_good}</p></div> : null}
-            {selectedJob.risk ? <div className="mt-4"><div className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">Risk / gap</div><p className="mt-1 text-sm leading-6 text-slate-700">{selectedJob.risk}</p></div> : null}
-            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void updateJob(selectedJob, "saved")} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Save</button><button type="button" onClick={() => void updateJob(selectedJob, "skipped")} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Skip</button>{selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="rounded-full border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700">Open job ↗</a> : null}</div>
-            <button type="button" onClick={() => void runPreparation()} disabled={!masterCV || preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed"} className="mt-4 w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300">{preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? preparation.step : "Prepare application"}</button>
-            {!masterCV ? <p className="mt-2 text-center text-xs text-amber-700">Set a Master CV above before preparing.</p> : null}
-            {preparation.step === "Complete" ? <div className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-900">✓ Package ready. The tailored CV and cover letter are now loaded below.</div> : null}
-            {preparation.error ? <div className="mt-3 rounded-xl bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-900">{preparation.error}</div> : null}
-          </> : <div className="flex min-h-[260px] items-center justify-center text-center text-sm text-slate-500">Select a job to inspect its fit and prepare an application.</div>}
+            <div className="detail-kicker"><span className="detail-kicker__dot" /> Role signal</div>
+            <div className="detail-title-row"><div><h3>{selectedJob.role}</h3><p>{selectedJob.company} <span>·</span> {selectedJob.location}</p></div><div className={`detail-score ${scoreClass(selectedJob.match_score)}`}><strong>{selectedJob.match_score ?? "—"}</strong><span>match</span></div></div>
+            {selectedJob.tech_stack ? <div className="tag-cloud">{String(selectedJob.tech_stack).split(",").slice(0, 6).map((tag) => <span key={tag}>{tag.trim()}</span>)}</div> : null}
+            <div className="detail-block detail-block--good"><span className="detail-block__label">Why it fits</span><p>{selectedJob.why_good || "No fit note was added for this role."}</p></div>
+            <div className="detail-block detail-block--risk"><span className="detail-block__label">Watch for</span><p>{selectedJob.risk || "No risk note was added for this role."}</p></div>
+            <div className="detail-actions"><button type="button" onClick={() => void updateJob(selectedJob, "saved")} className="button button--outline">Save role</button><button type="button" onClick={() => void updateJob(selectedJob, "skipped")} className="button button--ghost">Skip</button>{selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}</div>
+            <button type="button" onClick={() => void runPreparation()} disabled={!masterCV || (preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed")} className="prepare-button"><span>{preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? preparation.step : "Prepare application"}</span><span>→</span></button>
+            {!masterCV ? <p className="detail-note">Set a Master CV above before preparing.</p> : null}
+            {preparation.step === "Complete" ? <div className="alert alert--success">✓ Package ready. Your tailored CV and cover letter are loaded below.</div> : null}
+            {preparation.error ? <div className="alert alert--error">{preparation.error}</div> : null}
+          </> : <div className="detail-empty"><div className="detail-empty__icon">✦</div><strong>Choose a role to inspect</strong><span>Your shortlist and fit notes will appear here.</span></div>}
         </div>
       </div>
     </section>
