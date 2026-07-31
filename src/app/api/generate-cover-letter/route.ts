@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import type { CoverLetterRequest, CoverLetterResponse, ResumeData } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.6-sol";
+const OPENAI_MODEL = "gpt-5-mini";
 
 const systemPrompt = `You are CVPilot's cover letter assistant.
 

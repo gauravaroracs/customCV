@@ -7,7 +7,7 @@ import {
   RewriteResponse
 } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.6-sol";
+const OPENAI_MODEL = "gpt-5-mini";
 
 // Section names the AI may return. "full" triggers fallback to whole-resume mode.
 const SECTION_NAMES = [

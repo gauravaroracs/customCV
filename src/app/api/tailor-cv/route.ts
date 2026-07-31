@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { TailorRequest, TailorResponse } from "@/types/resume";
 
-const OPENAI_MODEL = "gpt-5.6-sol";
+const OPENAI_MODEL = "gpt-5-mini";
 
 const systemPrompt = `You are a professional CV editor specializing in German tech jobs. 
 You receive a MASTER CV and a job description. Follow this exact process:
@@ -109,7 +109,7 @@ STEP 5: HONESTY RULES
 Return ONLY raw JSON matching the schema. No markdown, no explanation.`;
 
 // Token budget estimate: system ~600, CV JSON ~800, JD ~400 = ~1800 total
-// gpt-5.6 handles this fine. If latency spikes, reduce masterCV
+// gpt-5-mini handles this fine. If latency spikes, reduce masterCV
 // by stripping the 'tech' field from projects before sending.
 
 export async function POST(request: Request) {
