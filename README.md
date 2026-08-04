@@ -102,6 +102,12 @@ current specific listings and imports them without assigning a score. Existing
 n8n scores are preserved by the job upsert path. Keep these provider boundaries
 when adding product features such as plans, usage limits, or billing later.
 
+You can also paste a complete public job-page URL into the inbox. CVPilot
+extracts the structured job posting and page text, imports the role without
+scoring it, then prepares a tailored CV and cover letter when a Master CV is
+available. Pages that require login or render the description only in the
+browser may need to be imported through the n8n workflow instead.
+
 ## Scripts
 
 - `npm run dev` - start the local development server

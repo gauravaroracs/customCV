@@ -14,14 +14,7 @@ Follow the resume-tailoring logic below, but return ONLY raw JSON matching this 
 {
   "tailoredCV": { "same schema as the master resume JSON, but omit any meta field" },
   "changes": ["short, useful notes about what changed or what to verify"],
-  "warnings": ["hard or soft gaps, or inferred bullets that need candidate verification"],
-  "matchScore": 0,
-  "matchBreakdown": {
-    "keywords": 0,
-    "experience": 0,
-    "skills": 0,
-    "overall": 0
-  }
+  "warnings": ["hard or soft gaps, or inferred bullets that need candidate verification"]
 }
 
 Map the requested steps into the API fields like this:
@@ -29,8 +22,6 @@ Map the requested steps into the API fields like this:
 - STEP 2 hard gaps / soft gaps / inferred bullets -> warnings[]
 - STEP 3 path to 95+ -> changes[]
 - STEP 4 one-sentence pitch -> add one changes[] item prefixed with "Pitch: "
-- Current score estimate from STEP 3 -> matchScore and matchBreakdown.overall
-- Set matchBreakdown.keywords, experience, and skills conservatively based on the JD fit
 
 HARD CONSTRAINTS
 Never violate these regardless of JD content.
@@ -99,8 +90,7 @@ Keep it tight.
 - Soft gaps: present but weak
 - Inferred bullets: every inferred bullet must be quoted and clearly marked for candidate verification
 
-STEP 3 — Path to 95+
-- Estimate a conservative current score out of 100
+STEP 3 — Improvements to verify
 - List up to 5 specific improvements the candidate could realistically confirm from their own experience
 - Be specific, not generic
 
@@ -114,8 +104,6 @@ HONESTY RULES
 - Never invent employers, degrees, dates, or metrics
 - Only add plausible JD-named tech in skills, not fake experience
 - If a requirement is genuinely missing, call it out in warnings
-- Keep scores conservative and reality-based
-
 Return ONLY raw JSON matching the required API schema. No markdown. No code fences. No commentary.`;
 
 // Token budget estimate: system ~600, CV JSON ~800, JD ~400 = ~1800 total
@@ -189,7 +177,7 @@ Build the tailored response now. Follow the hard constraints exactly and return 
           schema: {
             type: "object",
             additionalProperties: false,
-            required: ["tailoredCV", "changes", "warnings", "matchScore", "matchBreakdown"],
+            required: ["tailoredCV", "changes", "warnings"],
             properties: {
               tailoredCV: {
                 type: "object",
@@ -302,19 +290,7 @@ Build the tailored response now. Follow the hard constraints exactly and return 
                 }
               },
               changes: { type: "array", items: { type: "string" } },
-              warnings: { type: "array", items: { type: "string" } },
-              matchScore: { type: "number" },
-              matchBreakdown: {
-                type: "object",
-                additionalProperties: false,
-                required: ["keywords", "experience", "skills", "overall"],
-                properties: {
-                  keywords: { type: "number" },
-                  experience: { type: "number" },
-                  skills: { type: "number" },
-                  overall: { type: "number" }
-                }
-              }
+              warnings: { type: "array", items: { type: "string" } }
             }
           }
         }
@@ -326,7 +302,6 @@ Build the tailored response now. Follow the hard constraints exactly and return 
 
     const elapsed = Date.now() - t0;
     console.log(`[tailor-cv] ✓ RESPONSE  ${elapsed}ms`);
-    console.log(`  matchScore     : ${parsed.matchScore ?? "n/a"}`);
     console.log(`  changes        : ${parsed.changes?.length ?? 0}`);
     console.log(`  warnings       : ${parsed.warnings?.length ?? 0}`);
     console.log(`  exp rows out   : ${parsed.tailoredCV?.experience?.length ?? "n/a"}`);

@@ -67,6 +67,9 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [sortMode, setSortMode] = useState<SortMode>("fit");
   const [discoverySource, setDiscoverySource] = useState<DiscoverySource>(null);
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  const [importUrl, setImportUrl] = useState("");
+  const [importingJob, setImportingJob] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
     setRefreshing(true);
@@ -161,22 +164,23 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const selectedJobIsInactive = selectedJob?.lifecycle_status === "inactive";
   const canPrepareSelectedJob = Boolean(selectedJob && !selectedJobIsArchived && !selectedJobIsInactive);
 
-  const runPreparation = async () => {
-    if (!selectedJob || !masterCV) {
+  const prepareJob = async (job: JobRecord): Promise<boolean> => {
+    if (!masterCV) {
       setPreparation({ application: null, step: "", error: "Set a Master CV before preparing an application." });
-      return;
+      return false;
     }
 
     setPreparation({ application: null, step: "Creating application…", error: null });
+    let applicationId: string | null = null;
     try {
       const createResponse = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: selectedJob.id })
+        body: JSON.stringify({ job_id: job.id })
       });
       const created = await createResponse.json() as { application?: ApplicationRecord; error?: string };
       if (!createResponse.ok || !created.application) throw new Error(created.error ?? "Could not create application.");
-      const applicationId = created.application.id;
+      applicationId = created.application.id;
 
       const startResponse = await fetch(`/api/applications/${applicationId}/prepare`, { method: "POST" });
       if (!startResponse.ok) throw new Error("Could not start preparation.");
@@ -190,7 +194,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
         });
       };
 
-      const jobDescription = selectedJob.job_description ?? "";
+      const jobDescription = job.job_description ?? "";
       if (!jobDescription.trim()) throw new Error("This job has no extracted description yet.");
 
       await patchStep("Tailoring CV…");
@@ -209,7 +213,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
         body: JSON.stringify({
           resume: tailored.tailoredCV,
           jobDescription,
-          metadata: { company: selectedJob.company, role: selectedJob.role, location: selectedJob.location }
+          metadata: { company: job.company, role: job.role, location: job.location }
         })
       });
       const cover = await coverResponse.json() as CoverLetterResponse & { error?: string };
@@ -224,7 +228,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           current_step: "Complete",
           tailored_cv: tailored.tailoredCV,
           cover_letter: cover.coverLetter,
-          match_score: numberOrNull(selectedJob.match_score),
+          match_score: numberOrNull(job.match_score),
           match_breakdown: null,
           warnings: [...(tailored.warnings ?? []), ...(cover.warnings ?? [])],
           gap_analysis: tailored.changes ?? [],
@@ -238,20 +242,59 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       void fetch(`/api/applications/${applicationId}/sync-sheet`, { method: "POST" });
       onPrepared({
         resume: tailored.tailoredCV,
-        metadata: { company: selectedJob.company ?? "", role: selectedJob.role ?? "", location: selectedJob.location ?? "" },
+        metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" },
         coverLetter: cover.coverLetter
       });
       await loadJobs();
+      return true;
     } catch (runError) {
       const message = runError instanceof Error ? runError.message : "Preparation failed.";
       setPreparation((current) => ({ ...current, step: "Failed", error: message }));
-      if (preparation.application?.id) {
-        await fetch(`/api/applications/${preparation.application.id}`, {
+      if (applicationId) {
+        await fetch(`/api/applications/${applicationId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ preparation_status: "failed", preparation_error: message, current_step: "Failed" })
         });
       }
+      return false;
+    }
+  };
+
+  const runPreparation = async () => {
+    if (!selectedJob) {
+      setPreparation({ application: null, step: "", error: "Select a job before preparing an application." });
+      return;
+    }
+    await prepareJob(selectedJob);
+  };
+
+  const importJobPage = async () => {
+    setImportingJob(true);
+    setImportMessage(null);
+    try {
+      const response = await fetch("/api/jobs/import-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: importUrl })
+      });
+      const payload = await response.json() as { job?: JobRecord; error?: string };
+      if (!response.ok || !payload.job) throw new Error(payload.error ?? "Could not import that job page.");
+      setImportUrl("");
+      await loadJobs();
+      setSelectedJob(payload.job);
+      if (!masterCV) {
+        setImportMessage("Job imported. Set a Master CV, then prepare the CV and cover letter.");
+        return;
+      }
+      const prepared = await prepareJob(payload.job);
+      setImportMessage(prepared
+        ? "Job imported. Your tailored CV and cover letter are ready for review."
+        : "Job imported, but preparation failed. Check the application status for details.");
+    } catch (importError) {
+      setImportMessage(importError instanceof Error ? importError.message : "Could not import that job page.");
+    } finally {
+      setImportingJob(false);
     }
   };
 
@@ -278,6 +321,23 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
 
       {error ? <div className="alert alert--warning"><strong>Inbox unavailable.</strong> {error}<span>Add DATABASE_URL to the running environment to enable live jobs.</span></div> : null}
       {discoveryMessage ? <div className={`alert ${discoveryMessage.toLowerCase().includes("failed") || discoveryMessage.toLowerCase().includes("not configured") ? "alert--error" : "alert--success"}`}>{discoveryMessage}</div> : null}
+      <form onSubmit={(event) => { event.preventDefault(); void importJobPage(); }} className="mt-5 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <label className="min-w-[240px] flex-1">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Import a complete job page</span>
+          <input
+            type="url"
+            value={importUrl}
+            onChange={(event) => setImportUrl(event.target.value)}
+            disabled={importingJob || Boolean(discoverySource)}
+            placeholder="https://company.com/careers/software-engineer"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
+          />
+        </label>
+        <button type="submit" disabled={!importUrl.trim() || importingJob || Boolean(discoverySource)} className="button button--outline">
+          {importingJob ? "Importing and preparing…" : "Import, tailor and write"}
+        </button>
+      </form>
+      {importMessage ? <div className={`alert ${["could not", "error", "failed"].some((term) => importMessage.toLowerCase().includes(term)) ? "alert--error" : "alert--success"}`}>{importMessage}</div> : null}
 
       <div className="inbox-layout">
         <div className="job-list-shell">

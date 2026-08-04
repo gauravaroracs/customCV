@@ -113,8 +113,9 @@ export type TailorResponse = {
   tailoredCV: ResumeData;
   changes: string[];
   warnings: string[];
-  matchScore: number;
-  matchBreakdown: MatchBreakdown;
+  /** Kept optional for legacy saved responses; new tailoring never calculates scores. */
+  matchScore?: number;
+  matchBreakdown?: MatchBreakdown;
 };
 
 /** Discrete JD-driven patch for review before merging into the working CV */
