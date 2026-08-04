@@ -1,11 +1,15 @@
 "use client";
 
+import { LoadingButton } from "@/components/LoadingButton";
+
 type MasterCvModalProps = {
   isOpen: boolean;
   mode: "setup" | "update";
   onImportClick: () => void;
   onUseCurrent: () => void;
   onClose: () => void;
+  isImportingJson?: boolean;
+  isSavingCurrent?: boolean;
 };
 
 export function MasterCvModal({
@@ -13,7 +17,9 @@ export function MasterCvModal({
   mode,
   onImportClick,
   onUseCurrent,
-  onClose
+  onClose,
+  isImportingJson = false,
+  isSavingCurrent = false
 }: MasterCvModalProps) {
   if (!isOpen) {
     return null;
@@ -48,20 +54,28 @@ export function MasterCvModal({
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button
+          <LoadingButton
             type="button"
             onClick={onImportClick}
+            loading={isImportingJson}
+            loadingLabel="Importing…"
+            estimatedSeconds={4}
+            disabled={isSavingCurrent}
             className="flex-1 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             Import JSON
-          </button>
-          <button
+          </LoadingButton>
+          <LoadingButton
             type="button"
             onClick={onUseCurrent}
+            loading={isSavingCurrent}
+            loadingLabel="Saving master CV…"
+            estimatedSeconds={6}
+            disabled={isImportingJson}
             className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
           >
             Use current CV
-          </button>
+          </LoadingButton>
         </div>
       </div>
     </div>

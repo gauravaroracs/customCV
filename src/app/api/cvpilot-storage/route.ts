@@ -1,11 +1,16 @@
 import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
+import { Pool, type QueryResultRow } from "pg";
 
 type CvPilotSettings = {
   selectedVersion?: string;
   cvFontSize?: string;
   cvFontWeight?: string;
+  cvLineHeight?: string;
+  cvSectionGap?: string;
+  atsLineHeight?: string;
+  atsSectionGap?: string;
   cvTopMargin?: string;
   cvBottomMargin?: string;
 };
@@ -18,6 +23,8 @@ type CvPilotStorage = {
   photo?: string;
   coverLetter?: string;
 };
+
+type StorageKey = keyof typeof files;
 
 const storageDir = process.env.CVPILOT_STORAGE_DIR
   ? path.resolve(process.env.CVPILOT_STORAGE_DIR)
@@ -35,7 +42,37 @@ const files = {
   coverLetter: "cover-letter.txt"
 } as const;
 
+const storageKeys = Object.keys(files) as StorageKey[];
 let writeQueue: Promise<unknown> = Promise.resolve();
+let pool: Pool | null = null;
+let schemaPromise: Promise<void> | null = null;
+
+function hasDatabase() {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+function getPool() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not configured.");
+  }
+
+  pool ??= new Pool({ connectionString: process.env.DATABASE_URL });
+  return pool;
+}
+
+async function ensureDatabaseSchema() {
+  if (!schemaPromise) {
+    schemaPromise = getPool().query(`
+      CREATE TABLE IF NOT EXISTS cvpilot_storage (
+        key TEXT PRIMARY KEY,
+        value JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `).then(() => undefined);
+  }
+
+  await schemaPromise;
+}
 
 async function ensureStorageDir() {
   await fs.mkdir(storageDir, { recursive: true });
@@ -87,7 +124,7 @@ async function writeFileAtomic(filename: string, value: string) {
   await fs.rename(temporary, destination);
 }
 
-async function readStorage(): Promise<CvPilotStorage> {
+async function readFileStorage(): Promise<Required<CvPilotStorage>> {
   await ensureStorageDir();
 
   return {
@@ -100,21 +137,89 @@ async function readStorage(): Promise<CvPilotStorage> {
   };
 }
 
+function normalizeStorageValue(key: StorageKey, value: unknown) {
+  if (key === "recentApplications") return Array.isArray(value) ? value : [];
+  if (key === "settings") return value && typeof value === "object" ? value as CvPilotSettings : {};
+  if (key === "photo" || key === "coverLetter") return typeof value === "string" ? value : "";
+  return value ?? null;
+}
+
+async function writeFileStorageKey(key: StorageKey, value: unknown) {
+  const normalized = normalizeStorageValue(key, value);
+  if (key === "photo" || key === "coverLetter") {
+    await writeTextFile(files[key], String(normalized ?? ""));
+    return;
+  }
+
+  await writeJsonFile(files[key], normalized);
+}
+
+async function readDatabaseEntries() {
+  await ensureDatabaseSchema();
+  const result = await getPool().query<QueryResultRow & { key: StorageKey; value: unknown }>(
+    "SELECT key, value FROM cvpilot_storage WHERE key = ANY($1::text[])",
+    [storageKeys]
+  );
+  const values: Partial<Record<StorageKey, unknown>> = {};
+  const found = new Set<StorageKey>();
+
+  for (const row of result.rows) {
+    if (storageKeys.includes(row.key)) {
+      found.add(row.key);
+      values[row.key] = normalizeStorageValue(row.key, row.value);
+    }
+  }
+
+  return { values, found };
+}
+
+async function writeDatabaseKey(key: StorageKey, value: unknown) {
+  await ensureDatabaseSchema();
+  await getPool().query(
+    `INSERT INTO cvpilot_storage (key, value, updated_at)
+     VALUES ($1, $2::jsonb, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [key, JSON.stringify(normalizeStorageValue(key, value))]
+  );
+}
+
+async function writeStorageKey(key: StorageKey, value: unknown) {
+  const normalized = normalizeStorageValue(key, value);
+
+  if (hasDatabase()) {
+    await writeDatabaseKey(key, normalized);
+  }
+
+  await writeFileStorageKey(key, normalized);
+}
+
+async function readStorage(): Promise<Required<CvPilotStorage>> {
+  const fileStorage = await readFileStorage();
+
+  if (!hasDatabase()) {
+    return fileStorage;
+  }
+
+  const { values, found } = await readDatabaseEntries();
+  const merged = { ...fileStorage };
+
+  for (const key of storageKeys) {
+    if (found.has(key)) {
+      (merged as Record<StorageKey, unknown>)[key] = normalizeStorageValue(key, values[key]);
+    } else {
+      await writeDatabaseKey(key, fileStorage[key]);
+    }
+  }
+
+  return merged;
+}
+
 function stringifyForGuard(value: unknown) {
   try {
     return JSON.stringify(value ?? "").toLowerCase();
   } catch {
     return "";
   }
-}
-
-function isFraunhoferNlpCv(value: unknown) {
-  const text = stringifyForGuard(value);
-  return (
-    text.includes("fraunhofer sit") ||
-    text.includes("introduction to large language models") ||
-    text.includes("ai / ml / nlp")
-  );
 }
 
 function isKnownStaleBackendCv(value: unknown) {
@@ -144,7 +249,7 @@ export async function PATCH(request: Request) {
         const current = await readStorage();
 
         if ("masterCV" in body) {
-          await writeJsonFile(files.masterCV, body.masterCV ?? null);
+          await writeStorageKey("masterCV", body.masterCV ?? null);
         }
 
         if ("workingCV" in body) {
@@ -153,27 +258,27 @@ export async function PATCH(request: Request) {
             !isExplicitMasterAndWorkingPair && isKnownStaleBackendCv(body.workingCV);
 
           if (!shouldIgnoreStaleWorkingCv) {
-            await writeJsonFile(files.workingCV, body.workingCV ?? null);
+            await writeStorageKey("workingCV", body.workingCV ?? null);
           }
         }
 
         if ("recentApplications" in body) {
-          await writeJsonFile(files.recentApplications, body.recentApplications ?? []);
+          await writeStorageKey("recentApplications", body.recentApplications ?? []);
         }
 
         if ("settings" in body) {
-          await writeJsonFile(files.settings, {
+          await writeStorageKey("settings", {
             ...current.settings,
             ...body.settings
           });
         }
 
         if ("photo" in body) {
-          await writeTextFile(files.photo, body.photo ?? "");
+          await writeStorageKey("photo", body.photo ?? "");
         }
 
         if ("coverLetter" in body) {
-          await writeTextFile(files.coverLetter, body.coverLetter ?? "");
+          await writeStorageKey("coverLetter", body.coverLetter ?? "");
         }
       });
 

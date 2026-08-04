@@ -579,6 +579,53 @@ input:focus-visible {
 .button--outline { border-color: #c9c0ff; color: #5c47cc; background: var(--violet-soft); }
 .button--ghost { border-color: var(--line); color: var(--muted); background: white; }
 
+.loading-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.loading-button--active {
+  cursor: wait !important;
+}
+
+.loading-button__spinner {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 999px;
+  opacity: 0.85;
+  animation: spin 800ms linear infinite;
+}
+
+.loading-button__content {
+  min-width: 0;
+}
+
+.loading-button__eta {
+  margin-left: 2px;
+  white-space: nowrap;
+  font-size: 0.85em;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.loading-button.prepare-button {
+  justify-content: center;
+}
+
+.loading-button.prepare-button .loading-button__eta {
+  margin-left: auto;
+}
+
+.loading-button:disabled .loading-button__spinner {
+  opacity: 0.7;
+}
+
 .alert {
   margin-top: 18px;
   padding: 12px 14px;

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CoverLetterPanel } from "@/components/CoverLetterPanel";
+import { LoadingButton } from "@/components/LoadingButton";
 import { MasterCvModal } from "@/components/MasterCvModal";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
@@ -569,6 +570,10 @@ export default function HomePage() {
   const [cvTopMargin, setCvTopMargin] = useState("12px");
   const [cvBottomMargin, setCvBottomMargin] = useState("12px");
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
+  const [isCopyingPlainText, setIsCopyingPlainText] = useState(false);
+  const [isImportingJson, setIsImportingJson] = useState(false);
+  const [isSavingMasterCV, setIsSavingMasterCV] = useState(false);
+  const [isPhotoUploading, setIsPhotoUploading] = useState(false);
   const [, setError] = useState<string | null>(null);
   const [applicationElapsedMs, setApplicationElapsedMs] = useState(0);
   const [applicationTimerStartedAt, setApplicationTimerStartedAt] = useState<number | null>(null);
@@ -997,10 +1002,11 @@ export default function HomePage() {
   }, [isHydrated, recentApplications]);
 
   const persistMasterCV = async (nextMasterCV: ResumeData) => {
-    setMasterCV(nextMasterCV);
-    setResume(nextMasterCV);
-    bumpEditorSync();
+    setIsSavingMasterCV(true);
     try {
+      setMasterCV(nextMasterCV);
+      setResume(nextMasterCV);
+      bumpEditorSync();
       await patchRepoStorage({
         masterCV: nextMasterCV,
         workingCV: nextMasterCV
@@ -1010,6 +1016,8 @@ export default function HomePage() {
     } catch {
       setHasStoredMasterCV(false);
       setError("The master CV could not be saved in repo storage.");
+    } finally {
+      setIsSavingMasterCV(false);
     }
     setMasterModalMode("update");
     setShowMasterModal(false);
@@ -1063,6 +1071,7 @@ export default function HomePage() {
       return;
     }
 
+    setIsImportingJson(true);
     try {
       const text = await file.text();
       const parsed = normalizeResumeInput(JSON.parse(text));
@@ -1077,6 +1086,7 @@ export default function HomePage() {
     } catch {
       setError("The imported file is not valid resume JSON.");
     } finally {
+      setIsImportingJson(false);
       event.target.value = "";
     }
   };
@@ -1140,7 +1150,12 @@ export default function HomePage() {
 
   const handleCopyPlainText = async () => {
     const text = generateATSText(resume);
-    await navigator.clipboard.writeText(text);
+    setIsCopyingPlainText(true);
+    try {
+      await navigator.clipboard.writeText(text);
+    } finally {
+      setIsCopyingPlainText(false);
+    }
   };
 
   copyShortcutRef.current = handleCopyPlainText;
@@ -1170,6 +1185,7 @@ export default function HomePage() {
   }, []);
 
   const handlePhotoUpload = async (file: File) => {
+    setIsPhotoUploading(true);
     try {
       const photoUrl = await compressProfilePhoto(file);
       storedPhotoRef.current = photoUrl;
@@ -1188,6 +1204,8 @@ export default function HomePage() {
           ? uploadError.message
           : "Failed to process the selected image."
       );
+    } finally {
+      setIsPhotoUploading(false);
     }
   };
 
@@ -1326,6 +1344,9 @@ export default function HomePage() {
         onResetApplicationTimer={handleResetApplicationTimer}
         onPickPhoto={() => photoInputRef.current?.click()}
         onRemovePhoto={handlePhotoRemove}
+        isCopyingPlainText={isCopyingPlainText}
+        isImportingJson={isImportingJson}
+        isPhotoUploading={isPhotoUploading}
       />
 
       <MasterCvModal
@@ -1334,6 +1355,8 @@ export default function HomePage() {
         onImportClick={() => handleImportClick("master")}
         onUseCurrent={() => { void persistMasterCV(resume); }}
         onClose={() => setShowMasterModal(false)}
+        isImportingJson={isImportingJson}
+        isSavingCurrent={isSavingMasterCV}
       />
 
       <input
@@ -1453,13 +1476,16 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <button
+              <LoadingButton
                 type="button"
                 onClick={() => void handleCopyPlainText()}
+                loading={isCopyingPlainText}
+                loadingLabel="Copying…"
+                estimatedSeconds={2}
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
               >
                 ⧉ Copy plain text
-              </button>
+              </LoadingButton>
             </div>
           </div>
           </div>

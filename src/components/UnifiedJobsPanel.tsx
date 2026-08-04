@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { LoadingButton } from "@/components/LoadingButton";
 import type { ApplicationRecord, JobRecord } from "@/lib/jobStore";
 import type { JobMetadata, ResumeData, TailorResponse, CoverLetterResponse } from "@/types/resume";
 
@@ -70,6 +71,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [importText, setImportText] = useState("");
   const [importUrl, setImportUrl] = useState("");
   const [importingJob, setImportingJob] = useState(false);
+  const [jobAction, setJobAction] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const loadJobs = useCallback(async () => {
@@ -150,15 +152,21 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
 
   const updateJob = async (
     job: JobRecord,
-    patch: Partial<Pick<JobRecord, "review_status" | "lifecycle_status" | "inactive_reason">> & { archived?: boolean }
+    patch: Partial<Pick<JobRecord, "review_status" | "lifecycle_status" | "inactive_reason">> & { archived?: boolean },
+    actionId = "job-update"
   ) => {
-    const response = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch)
-    });
-    if (!response.ok) throw new Error("Could not update the job review status.");
-    await loadJobs();
+    setJobAction(actionId);
+    try {
+      const response = await fetch(`/api/jobs/${encodeURIComponent(job.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch)
+      });
+      if (!response.ok) throw new Error("Could not update the job review status.");
+      await loadJobs();
+    } finally {
+      setJobAction(null);
+    }
   };
 
   const selectedJobIsArchived = Boolean(selectedJob?.archived_at);
@@ -285,14 +293,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       setImportUrl("");
       await loadJobs();
       setSelectedJob(payload.job);
-      if (!masterCV) {
-        setImportMessage("Job imported. Set a Master CV, then prepare the CV and cover letter.");
-        return;
-      }
-      const prepared = await prepareJob(payload.job);
-      setImportMessage(prepared
-        ? "Job imported. Your tailored CV and cover letter are ready for review."
-        : "Job imported, but preparation failed. Check the application status for details.");
+      setImportMessage("Job imported. Review it, then click Prepare application when you want to tailor the CV and write the cover letter.");
     } catch (importError) {
       setImportMessage(importError instanceof Error ? importError.message : "Could not import that job page.");
     } finally {
@@ -309,15 +310,15 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           <p>Bring in scored roles from n8n or search the live web with Codex. Review the signal, then prepare the application.</p>
         </div>
         <div className="toolbar-actions">
-          <button type="button" onClick={() => void loadJobs()} disabled={refreshing || Boolean(discoverySource)} className="button button--ghost">
-            <span className={refreshing ? "spin" : ""}>↻</span> {refreshing ? "Refreshing" : "Refresh"}
-          </button>
-          <button type="button" onClick={() => void runDiscovery("n8n")} disabled={Boolean(discoverySource)} className="button button--outline">
-            {discoverySource === "n8n" ? "Starting n8n…" : "Discover with n8n"}
-          </button>
-          <button type="button" onClick={() => void runDiscovery("codex")} disabled={Boolean(discoverySource)} className="button button--outline">
-            {discoverySource === "codex" ? "Searching with Codex…" : "Discover with Codex"}
-          </button>
+          <LoadingButton type="button" onClick={() => void loadJobs()} loading={refreshing} loadingLabel="Refreshing" estimatedSeconds={8} disabled={Boolean(discoverySource)} className="button button--ghost">
+            ↻ Refresh
+          </LoadingButton>
+          <LoadingButton type="button" onClick={() => void runDiscovery("n8n")} loading={discoverySource === "n8n"} loadingLabel="Starting n8n…" estimatedSeconds={45} disabled={Boolean(discoverySource)} className="button button--outline">
+            Discover with n8n
+          </LoadingButton>
+          <LoadingButton type="button" onClick={() => void runDiscovery("codex")} loading={discoverySource === "codex"} loadingLabel="Searching with Codex…" estimatedSeconds={60} disabled={Boolean(discoverySource)} className="button button--outline">
+            Discover with Codex
+          </LoadingButton>
         </div>
       </div>
 
@@ -347,9 +348,9 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
             />
           </label>
-          <button type="submit" disabled={!importText.trim() || importingJob || Boolean(discoverySource)} className="button button--outline">
-            {importingJob ? "Importing and preparing…" : "Import, tailor and write"}
-          </button>
+          <LoadingButton type="submit" loading={importingJob} loadingLabel="Importing job…" estimatedSeconds={25} disabled={!importText.trim() || Boolean(discoverySource)} className="button button--outline">
+            Import job
+          </LoadingButton>
         </div>
       </form>
       {importMessage ? <div className={`alert ${["could not", "error", "failed"].some((term) => importMessage.toLowerCase().includes(term)) ? "alert--error" : "alert--success"}`}>{importMessage}</div> : null}
@@ -400,21 +401,21 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
             <div className="detail-block detail-block--good"><span className="detail-block__label">Why it fits</span><p>{selectedJob.why_good || "No fit note was added for this role."}</p></div>
             <div className="detail-block detail-block--risk"><span className="detail-block__label">Watch for</span><p>{selectedJob.risk || "No risk note was added for this role."}</p></div>
             <div className="detail-actions">
-              <button type="button" onClick={() => void updateJob(selectedJob, { review_status: "saved" })} className="button button--outline">Save role</button>
-              <button type="button" onClick={() => void updateJob(selectedJob, { review_status: "skipped" })} className="button button--ghost">Skip</button>
+              <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { review_status: "saved" }, "save-role")} loading={jobAction === "save-role"} loadingLabel="Saving…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--outline">Save role</LoadingButton>
+              <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { review_status: "skipped" }, "skip-role")} loading={jobAction === "skip-role"} loadingLabel="Skipping…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--ghost">Skip</LoadingButton>
               {selectedJob.lifecycle_status === "active" ? (
-                <button type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "inactive", inactive_reason: "Manually deactivated from inbox" })} className="button button--ghost">Mark inactive</button>
+                <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "inactive", inactive_reason: "Manually deactivated from inbox" }, "mark-inactive")} loading={jobAction === "mark-inactive"} loadingLabel="Marking inactive…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--ghost">Mark inactive</LoadingButton>
               ) : (
-                <button type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "active", inactive_reason: "" })} className="button button--outline">Mark active</button>
+                <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { lifecycle_status: "active", inactive_reason: "" }, "mark-active")} loading={jobAction === "mark-active"} loadingLabel="Marking active…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--outline">Mark active</LoadingButton>
               )}
               {selectedJob.archived_at ? (
-                <button type="button" onClick={() => void updateJob(selectedJob, { archived: false })} className="button button--outline">Restore</button>
+                <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { archived: false }, "restore-role")} loading={jobAction === "restore-role"} loadingLabel="Restoring…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--outline">Restore</LoadingButton>
               ) : (
-                <button type="button" onClick={() => void updateJob(selectedJob, { archived: true })} className="button button--ghost">Archive</button>
+                <LoadingButton type="button" onClick={() => void updateJob(selectedJob, { archived: true }, "archive-role")} loading={jobAction === "archive-role"} loadingLabel="Archiving…" estimatedSeconds={4} disabled={Boolean(jobAction)} className="button button--ghost">Archive</LoadingButton>
               )}
               {selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}
             </div>
-            <button type="button" onClick={() => void runPreparation()} disabled={!masterCV || !canPrepareSelectedJob || (preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed")} className="prepare-button"><span>{preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? preparation.step : "Prepare application"}</span><span>→</span></button>
+            <LoadingButton type="button" onClick={() => void runPreparation()} loading={preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed"} loadingLabel={preparation.step || "Preparing…"} estimatedSeconds={90} disabled={!masterCV || !canPrepareSelectedJob} className="prepare-button"><span>Prepare application</span><span>→</span></LoadingButton>
             {!masterCV ? <p className="detail-note">Set a Master CV above before preparing.</p> : null}
             {selectedJobIsArchived ? <p className="detail-note">Archived roles stay in history but are hidden from the default inbox and cannot be prepared.</p> : null}
             {selectedJobIsInactive ? <p className="detail-note">This role is marked inactive in the backend. Restore it to active before preparing.</p> : null}

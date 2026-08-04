@@ -1,6 +1,7 @@
 "use client";
 
 import { ResumeSectionKey, RewriteResponse } from "@/types/resume";
+import { LoadingButton } from "@/components/LoadingButton";
 
 type AiPanelProps = {
   selectedSection: ResumeSectionKey | null;
@@ -75,14 +76,16 @@ export function AiPanel({
           </div>
         ) : null}
 
-        <button
+        <LoadingButton
           type="button"
           onClick={onGenerate}
-          disabled={isLoading}
+          loading={isLoading}
+          loadingLabel="Generating suggestion…"
+          estimatedSeconds={30}
           className="w-full rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {isLoading ? "Generating suggestion..." : "Generate suggestion"}
-        </button>
+          Generate suggestion
+        </LoadingButton>
       </div>
 
       <div className="mt-6 space-y-4">

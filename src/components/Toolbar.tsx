@@ -1,6 +1,7 @@
 "use client";
 
 import { RecentApplication } from "@/types/resume";
+import { LoadingButton } from "@/components/LoadingButton";
 import {
   Camera,
   ChevronDown,
@@ -33,6 +34,9 @@ type ToolbarProps = {
   applicationElapsedMs: number;
   isApplicationTimerRunning: boolean;
   hasPhoto?: boolean;
+  isCopyingPlainText?: boolean;
+  isImportingJson?: boolean;
+  isPhotoUploading?: boolean;
   onVersionChange: (value: string) => void;
   onFontSizeChange: (value: string) => void;
   onFontWeightChange: (value: string) => void;
@@ -95,6 +99,9 @@ export function Toolbar({
   applicationElapsedMs,
   isApplicationTimerRunning,
   hasPhoto = false,
+  isCopyingPlainText = false,
+  isImportingJson = false,
+  isPhotoUploading = false,
   onVersionChange,
   onFontSizeChange,
   onFontWeightChange,
@@ -164,9 +171,9 @@ export function Toolbar({
       <div className="app-toolbar-row">
         <div className="toolbar-context"><span className="toolbar-context__label">Current version</span><select value={selectedVersion} disabled={disabled} onChange={(event) => onVersionChange(event.target.value)}>{versions.map((version) => <option key={version} value={version}>{version}</option>)}</select></div>
         <div className="toolbar-actions">
-          <button type="button" onClick={onImportClick} disabled={disabled}><Upload size={14} /> Import JSON</button>
+          <LoadingButton type="button" onClick={onImportClick} loading={isImportingJson} loadingLabel="Importing…" estimatedSeconds={4} disabled={disabled}><Upload size={14} /> Import JSON</LoadingButton>
           <button type="button" onClick={onExportClick} disabled={disabled}><Download size={14} /> Export</button>
-          {onPickPhoto ? <button type="button" onClick={onPickPhoto} disabled={disabled}><Camera size={14} /> {hasPhoto ? "Change photo" : "Add photo"}</button> : null}
+          {onPickPhoto ? <LoadingButton type="button" onClick={onPickPhoto} loading={isPhotoUploading} loadingLabel="Processing photo…" estimatedSeconds={6} disabled={disabled}><Camera size={14} /> {hasPhoto ? "Change photo" : "Add photo"}</LoadingButton> : null}
           {hasPhoto && onRemovePhoto ? <button type="button" onClick={onRemovePhoto} disabled={disabled} className="toolbar-action--quiet">Remove photo</button> : null}
           <button type="button" onClick={onResetClick} disabled={disabled} className="toolbar-action--quiet">Reset to Master</button>
         </div>
@@ -181,7 +188,7 @@ export function Toolbar({
             <label>ATS gap <input type="range" min="4" max="16" step="1" value={atsSectionGap} disabled={disabled} onChange={(event) => onAtsSectionGapChange(event.target.value)} /><output>{atsSectionGap}px</output></label>
             <label>Top margin<select value={cvTopMargin} disabled={disabled} onChange={(event) => onTopMarginChange(event.target.value)}>{["4px", "8px", "12px", "18px", "24px", "32px", "40px"].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Bottom margin<select value={cvBottomMargin} disabled={disabled} onChange={(event) => onBottomMarginChange(event.target.value)}>{["0px", "4px", "8px", "12px", "18px", "24px", "32px", "40px"].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-            <button type="button" onClick={onCopyPlainText} disabled={disabled} className="control-drawer__copy"><FileJson size={14} /> Copy plain text</button>
+            <LoadingButton type="button" onClick={onCopyPlainText} loading={isCopyingPlainText} loadingLabel="Copying…" estimatedSeconds={2} disabled={disabled} className="control-drawer__copy"><FileJson size={14} /> Copy plain text</LoadingButton>
           </div>
         </details>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { LoadingButton } from "@/components/LoadingButton";
 import type { CvEditProposal, JobMetadata, ProposeEditsResponse, TailorResponse } from "@/types/resume";
 
 const loadingMessages = [
@@ -222,24 +223,18 @@ export function QuickApplyPanel({
           </div>
         ) : null}
 
-        <button
+        <LoadingButton
           type="button"
           onClick={onGenerate}
+          loading={isLoading}
+          loadingLabel={loadingMessages[loadingIndex]}
+          estimatedSeconds={60}
           disabled={disabled}
           className="flex w-full items-center justify-center gap-3 rounded-2xl bg-accent px-4 py-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {isLoading ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              <span>{loadingMessages[loadingIndex]}</span>
-            </>
-          ) : (
-            <>
-              <span>⚡ Tailor &amp; Generate</span>
-              <span className="text-xs font-medium text-blue-100">Cmd+Enter</span>
-            </>
-          )}
-        </button>
+          <span>⚡ Tailor &amp; Generate</span>
+          <span className="text-xs font-medium text-blue-100">Cmd+Enter</span>
+        </LoadingButton>
 
         <div className="rounded-[24px] border border-teal-200 bg-teal-50/50 p-4">
           <div className="mb-2 flex items-center gap-2">
@@ -260,23 +255,19 @@ export function QuickApplyPanel({
             placeholder='Optional: "Bold metrics", "Keep only 4 SE bullets", "De-emphasize Kubernetes"'
             className="mb-3 w-full rounded-2xl border border-teal-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
           />
-          <button
+          <LoadingButton
             type="button"
             onClick={() => {
               onSuggestEdits(suggestUserNotes.trim());
             }}
+            loading={isSuggestLoading}
+            loadingLabel={suggestLoadingMessages[suggestLoadingIndex]}
+            estimatedSeconds={45}
             disabled={disabled || isLoading || !jobDescription.trim()}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {isSuggestLoading ? (
-              <>
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                <span>{suggestLoadingMessages[suggestLoadingIndex]}</span>
-              </>
-            ) : (
-              <span>💡 Propose JD edits</span>
-            )}
-          </button>
+            <span>💡 Propose JD edits</span>
+          </LoadingButton>
 
           {proposalApplySuccess ? (
             <div className="mt-3 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-900">
@@ -421,7 +412,7 @@ export function QuickApplyPanel({
         {editSuccess ? (
           <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">✓ {editSuccess}</div>
         ) : null}
-        <button
+        <LoadingButton
           type="button"
           onClick={() => {
             if (editInstruction.trim()) {
@@ -429,36 +420,26 @@ export function QuickApplyPanel({
               setEditInstruction("");
             }
           }}
-          disabled={disabled || isEditLoading || !editInstruction.trim()}
+          loading={isEditLoading}
+          loadingLabel="Applying edit…"
+          estimatedSeconds={25}
+          disabled={disabled || !editInstruction.trim()}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isEditLoading ? (
-            <>
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              <span>Applying edit...</span>
-            </>
-          ) : (
-            <>
-              <span>✏ Apply Edit</span>
-              <span className="text-xs font-medium text-violet-200">⌘+Enter</span>
-            </>
-          )}
-        </button>
-        <button
+          <span>✏ Apply Edit</span>
+          <span className="text-xs font-medium text-violet-200">⌘+Enter</span>
+        </LoadingButton>
+        <LoadingButton
           type="button"
           onClick={onRescore}
-          disabled={disabled || isRescoring || isLoading || !jobDescription.trim()}
+          loading={isRescoring}
+          loadingLabel="Scoring…"
+          estimatedSeconds={20}
+          disabled={disabled || isLoading || !jobDescription.trim()}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 transition hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isRescoring ? (
-            <>
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-300 border-t-violet-700" />
-              <span>Scoring...</span>
-            </>
-          ) : (
-            <span>📊 Re-check Score</span>
-          )}
-        </button>
+          <span>📊 Re-check Score</span>
+        </LoadingButton>
       </div>
 
       {/* Save Application */}

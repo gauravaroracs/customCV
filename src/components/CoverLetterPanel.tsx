@@ -1,7 +1,8 @@
 "use client";
 
-import { Copy, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { LoadingButton } from "@/components/LoadingButton";
 
 interface CoverLetterSectionProps {
   candidateName: string;
@@ -281,6 +282,8 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
   const [coverLetterAtsSectionGap, setCoverLetterAtsSectionGap] = useState("7");
   const [coverLetterTopMargin, setCoverLetterTopMargin] = useState("4px");
   const [coverLetterBottomMargin, setCoverLetterBottomMargin] = useState("0px");
+  const [isCopyingText, setIsCopyingText] = useState(false);
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false);
   const coverLetterPreviewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -321,7 +324,12 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
       return;
     }
 
-    await navigator.clipboard.writeText(coverLetterText);
+    setIsCopyingText(true);
+    try {
+      await navigator.clipboard.writeText(coverLetterText);
+    } finally {
+      setIsCopyingText(false);
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -329,9 +337,11 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
       return;
     }
 
+    setIsPreparingPdf(true);
     const printWindow = window.open("", "_blank", "width=900,height=1200");
     if (!printWindow) {
       window.print();
+      setIsPreparingPdf(false);
       return;
     }
 
@@ -385,6 +395,7 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
     window.setTimeout(() => {
       printWindow.print();
       printWindow.close();
+      setIsPreparingPdf(false);
     }, 250);
   };
 
@@ -399,17 +410,20 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
+          <LoadingButton
             type="button"
             onClick={() => {
               void handleDownloadPdf();
             }}
+            loading={isPreparingPdf}
+            loadingLabel="Preparing PDF…"
+            estimatedSeconds={3}
             disabled={!hasText}
             className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <Download className="h-4 w-4" />
             Download PDF
-          </button>
+          </LoadingButton>
         </div>
       </div>
 
@@ -530,14 +544,17 @@ export function CoverLetterPanel({ cvFontWeight, initialText = "" }: CoverLetter
           </select>
         </label>
 
-        <button
+        <LoadingButton
           type="button"
           onClick={() => void handleCopyText()}
+          loading={isCopyingText}
+          loadingLabel="Copying…"
+          estimatedSeconds={2}
           disabled={!hasText}
           className="cursor-pointer rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Copy text
-        </button>
+        </LoadingButton>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)]">

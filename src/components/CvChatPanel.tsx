@@ -1,6 +1,7 @@
 "use client";
 
 import { JobMetadata } from "@/types/resume";
+import { LoadingButton } from "@/components/LoadingButton";
 
 export type CvChatMessage = {
   role: "user" | "assistant";
@@ -54,14 +55,17 @@ export function CvChatPanel({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
+          <LoadingButton
             type="button"
             onClick={onScore}
-            disabled={isLoading || isScoring || !jobDescription.trim()}
+            loading={isScoring}
+            loadingLabel="Scoring…"
+            estimatedSeconds={20}
+            disabled={isLoading || !jobDescription.trim()}
             className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
           >
-            {isScoring ? "Scoring…" : "Score vs JD"}
-          </button>
+            Score vs JD
+          </LoadingButton>
           <button
             type="button"
             onClick={onSaveApplication}
@@ -167,14 +171,17 @@ export function CvChatPanel({
             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none focus:border-blue-300 disabled:opacity-60"
           />
         </label>
-        <button
+        <LoadingButton
           type="button"
           onClick={onSend}
-          disabled={isLoading || !draft.trim()}
+          loading={isLoading}
+          loadingLabel="Updating…"
+          estimatedSeconds={25}
+          disabled={!draft.trim()}
           className="shrink-0 rounded-2xl bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          {isLoading ? "Updating…" : "Send"}
-        </button>
+          Send
+        </LoadingButton>
       </div>
     </section>
   );
