@@ -40,8 +40,12 @@ const FONT_SIZE_STORAGE_KEY     = "cvPilot_fontSize";
 const FONT_WEIGHT_STORAGE_KEY   = "cvFontWeight";
 const LINE_HEIGHT_STORAGE_KEY   = "cvPilot_lineHeight";
 const SECTION_GAP_STORAGE_KEY   = "cvPilot_sectionGap";
+const ATS_FONT_SIZE_STORAGE_KEY = "cvPilot_atsFontSize";
 const ATS_LINE_HEIGHT_STORAGE_KEY = "cvPilot_atsLineHeight";
 const ATS_SECTION_GAP_STORAGE_KEY = "cvPilot_atsSectionGap";
+const ATS_PAGE_MARGIN_STORAGE_KEY = "cvPilot_atsPageMargin";
+const CV_LEFT_MARGIN_STORAGE_KEY = "cvPilot_leftMargin";
+const CV_RIGHT_MARGIN_STORAGE_KEY = "cvPilot_rightMargin";
 const PHOTO_STORAGE_KEY         = "cvPilot_photo";
 const ATS_PRINT_STYLE_ID        = "cvpilot-ats-print-style";
 
@@ -152,14 +156,26 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
   const cvFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY) ?? undefined;
   const cvLineHeight = window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
   const cvSectionGap = window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
+  const atsFontSize = window.localStorage.getItem(ATS_FONT_SIZE_STORAGE_KEY) ?? undefined;
   const atsLineHeight = window.localStorage.getItem(ATS_LINE_HEIGHT_STORAGE_KEY) ?? undefined;
   const atsSectionGap = window.localStorage.getItem(ATS_SECTION_GAP_STORAGE_KEY) ?? undefined;
+  const atsPageMargin = window.localStorage.getItem(ATS_PAGE_MARGIN_STORAGE_KEY) ?? undefined;
   const cvTopMargin =
     window.localStorage.getItem("cvTopMargin") ??
     window.localStorage.getItem("cvPageMargin") ??
     undefined;
   const cvBottomMargin =
     window.localStorage.getItem("cvBottomMargin") ??
+    window.localStorage.getItem("cvPageMargin") ??
+    undefined;
+  const cvLeftMargin =
+    window.localStorage.getItem(CV_LEFT_MARGIN_STORAGE_KEY) ??
+    window.localStorage.getItem("cvLeftMargin") ??
+    window.localStorage.getItem("cvPageMargin") ??
+    undefined;
+  const cvRightMargin =
+    window.localStorage.getItem(CV_RIGHT_MARGIN_STORAGE_KEY) ??
+    window.localStorage.getItem("cvRightMargin") ??
     window.localStorage.getItem("cvPageMargin") ??
     undefined;
 
@@ -188,10 +204,14 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
       cvFontWeight,
       cvLineHeight,
       cvSectionGap,
+      atsFontSize,
       atsLineHeight,
       atsSectionGap,
+      atsPageMargin,
       cvTopMargin,
-      cvBottomMargin
+      cvBottomMargin,
+      cvLeftMargin,
+      cvRightMargin
     }
   };
 }
@@ -227,10 +247,14 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
       cvFontWeight,
       cvLineHeight,
       cvSectionGap,
+      atsFontSize,
       atsLineHeight,
       atsSectionGap,
+      atsPageMargin,
       cvTopMargin,
-      cvBottomMargin
+      cvBottomMargin,
+      cvLeftMargin,
+      cvRightMargin
     } = payload.settings;
 
     if (selectedVersion) {
@@ -253,6 +277,10 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
       window.localStorage.setItem(SECTION_GAP_STORAGE_KEY, cvSectionGap);
     }
 
+    if (atsFontSize) {
+      window.localStorage.setItem(ATS_FONT_SIZE_STORAGE_KEY, atsFontSize);
+    }
+
     if (atsLineHeight) {
       window.localStorage.setItem(ATS_LINE_HEIGHT_STORAGE_KEY, atsLineHeight);
     }
@@ -261,12 +289,24 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
       window.localStorage.setItem(ATS_SECTION_GAP_STORAGE_KEY, atsSectionGap);
     }
 
+    if (atsPageMargin) {
+      window.localStorage.setItem(ATS_PAGE_MARGIN_STORAGE_KEY, atsPageMargin);
+    }
+
     if (cvTopMargin) {
       window.localStorage.setItem("cvTopMargin", cvTopMargin);
     }
 
     if (cvBottomMargin) {
       window.localStorage.setItem("cvBottomMargin", cvBottomMargin);
+    }
+
+    if (cvLeftMargin) {
+      window.localStorage.setItem(CV_LEFT_MARGIN_STORAGE_KEY, cvLeftMargin);
+    }
+
+    if (cvRightMargin) {
+      window.localStorage.setItem(CV_RIGHT_MARGIN_STORAGE_KEY, cvRightMargin);
     }
   }
 }
@@ -741,6 +781,12 @@ export default function HomePage() {
         const legacyStoredPageMargin = window.localStorage.getItem("cvPageMargin");
         const legacyStoredTopMargin = window.localStorage.getItem("cvTopMargin");
         const legacyStoredBottomMargin = window.localStorage.getItem("cvBottomMargin");
+        const legacyStoredLeftMargin =
+          window.localStorage.getItem(CV_LEFT_MARGIN_STORAGE_KEY) ??
+          window.localStorage.getItem("cvLeftMargin");
+        const legacyStoredRightMargin =
+          window.localStorage.getItem(CV_RIGHT_MARGIN_STORAGE_KEY) ??
+          window.localStorage.getItem("cvRightMargin");
 
         const nextSelectedVersion =
           repoSettings.selectedVersion ??
@@ -749,6 +795,10 @@ export default function HomePage() {
         const nextFontWeight = repoSettings.cvFontWeight ?? legacyStoredFontWeight ?? undefined;
         const nextLineHeight = repoSettings.cvLineHeight ?? window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
         const nextSectionGap = repoSettings.cvSectionGap ?? window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
+        const nextAtsFontSize =
+          repoSettings.atsFontSize ??
+          window.localStorage.getItem(ATS_FONT_SIZE_STORAGE_KEY) ??
+          undefined;
         const nextAtsLineHeight =
           repoSettings.atsLineHeight ??
           window.localStorage.getItem(ATS_LINE_HEIGHT_STORAGE_KEY) ??
@@ -757,10 +807,18 @@ export default function HomePage() {
           repoSettings.atsSectionGap ??
           window.localStorage.getItem(ATS_SECTION_GAP_STORAGE_KEY) ??
           undefined;
+        const nextAtsPageMargin =
+          repoSettings.atsPageMargin ??
+          window.localStorage.getItem(ATS_PAGE_MARGIN_STORAGE_KEY) ??
+          undefined;
         const nextTopMargin =
           repoSettings.cvTopMargin ?? legacyStoredTopMargin ?? legacyStoredPageMargin ?? undefined;
         const nextBottomMargin =
           repoSettings.cvBottomMargin ?? legacyStoredBottomMargin ?? legacyStoredPageMargin ?? undefined;
+        const nextLeftMargin =
+          repoSettings.cvLeftMargin ?? legacyStoredLeftMargin ?? legacyStoredPageMargin ?? undefined;
+        const nextRightMargin =
+          repoSettings.cvRightMargin ?? legacyStoredRightMargin ?? legacyStoredPageMargin ?? undefined;
 
         const nextRecentApplications = repoRecent
           ? normalizeRecentApplications(repoRecent)
@@ -790,10 +848,14 @@ export default function HomePage() {
           cvFontWeight: nextFontWeight,
           cvLineHeight: nextLineHeight,
           cvSectionGap: nextSectionGap,
+          atsFontSize: nextAtsFontSize,
           atsLineHeight: nextAtsLineHeight,
           atsSectionGap: nextAtsSectionGap,
+          atsPageMargin: nextAtsPageMargin,
           cvTopMargin: nextTopMargin,
-          cvBottomMargin: nextBottomMargin
+          cvBottomMargin: nextBottomMargin,
+          cvLeftMargin: nextLeftMargin,
+          cvRightMargin: nextRightMargin
         });
 
         setRecentApplications(nextRecentApplications);
@@ -811,10 +873,14 @@ export default function HomePage() {
               cvFontWeight: nextFontWeight,
               cvLineHeight: nextLineHeight,
               cvSectionGap: nextSectionGap,
+              atsFontSize: nextAtsFontSize,
               atsLineHeight: nextAtsLineHeight,
               atsSectionGap: nextAtsSectionGap,
+              atsPageMargin: nextAtsPageMargin,
               cvTopMargin: nextTopMargin,
-              cvBottomMargin: nextBottomMargin
+              cvBottomMargin: nextBottomMargin,
+              cvLeftMargin: nextLeftMargin,
+              cvRightMargin: nextRightMargin
             }
           });
         }
@@ -1118,7 +1184,7 @@ export default function HomePage() {
     styleElement.id = ATS_PRINT_STYLE_ID;
     styleElement.textContent = `
 @media print {
-  @page { size: A4; margin: 15mm 15mm 15mm 15mm; }
+  @page { size: A4; margin: ${settings.atsPageMargin}; }
   body { font-family: Arial, sans-serif; color: #000; }
   * { color: #000 !important; background: none !important; }
 }
@@ -1161,10 +1227,11 @@ export default function HomePage() {
     window.addEventListener("afterprint", restore, { once: true });
     window.print();
     window.setTimeout(restore, 0);
-  }, [resume, jobMetadata]);
+  }, [resume, jobMetadata, settings.atsPageMargin]);
 
   // Build the ATS HTML whenever resume changes
   const atsHtml = generateATSHtml(withoutDownloadOnlyFields(resume), {
+    fontSize: settings.atsFontSize,
     lineHeight: settings.atsLineHeight,
     sectionGap: settings.atsSectionGap
   });
@@ -1191,19 +1258,27 @@ export default function HomePage() {
         cvFontWeight={settings.cvFontWeight}
         cvLineHeight={settings.cvLineHeight}
         cvSectionGap={settings.cvSectionGap}
+        atsFontSize={settings.atsFontSize}
         atsLineHeight={settings.atsLineHeight}
         atsSectionGap={settings.atsSectionGap}
+        atsPageMargin={settings.atsPageMargin}
         cvTopMargin={settings.cvTopMargin}
         cvBottomMargin={settings.cvBottomMargin}
+        cvLeftMargin={settings.cvLeftMargin}
+        cvRightMargin={settings.cvRightMargin}
         onVersionChange={(value) => updateSettings({ selectedVersion: value })}
         onFontSizeChange={(value) => updateSettings({ cvFontSize: value })}
         onFontWeightChange={(value) => updateSettings({ cvFontWeight: value })}
         onLineHeightChange={(value) => updateSettings({ cvLineHeight: value })}
         onSectionGapChange={(value) => updateSettings({ cvSectionGap: value })}
+        onAtsFontSizeChange={(value) => updateSettings({ atsFontSize: value })}
         onAtsLineHeightChange={(value) => updateSettings({ atsLineHeight: value })}
         onAtsSectionGapChange={(value) => updateSettings({ atsSectionGap: value })}
+        onAtsPageMarginChange={(value) => updateSettings({ atsPageMargin: value })}
         onTopMarginChange={(value) => updateSettings({ cvTopMargin: value })}
         onBottomMarginChange={(value) => updateSettings({ cvBottomMargin: value })}
+        onLeftMarginChange={(value) => updateSettings({ cvLeftMargin: value })}
+        onRightMarginChange={(value) => updateSettings({ cvRightMargin: value })}
         onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
         onCopyPlainText={handleCopyPlainText}
@@ -1297,6 +1372,8 @@ export default function HomePage() {
               cvSectionGap={settings.cvSectionGap}
               cvTopMargin={settings.cvTopMargin}
               cvBottomMargin={settings.cvBottomMargin}
+              cvLeftMargin={settings.cvLeftMargin}
+              cvRightMargin={settings.cvRightMargin}
               onOverflowChange={setPreviewOverflowAmount}
             />
             <div className="no-print mt-3 flex justify-center">

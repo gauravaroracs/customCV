@@ -1,6 +1,7 @@
 import { JobMetadata, ResumeData } from "@/types/resume";
 
 export type ATSLayoutOptions = {
+  fontSize?: string;
   lineHeight?: string;
   sectionGap?: string;
 };
@@ -111,6 +112,7 @@ export function generateATSHtml(cv: ResumeData, options: ATSLayoutOptions = {}):
     contactLink(cv.personal.website)
   ].filter(Boolean).join(" &middot; ");
 
+  const fontSize = options.fontSize ?? "11px";
   const lineHeight = options.lineHeight ?? "1.25";
   const sectionGap = Number(options.sectionGap ?? "7");
   const sectionHeadingGap = Math.max(2, Math.round(sectionGap * 0.45));
@@ -182,7 +184,7 @@ export function generateATSHtml(cv: ResumeData, options: ATSLayoutOptions = {}):
     : "";
 
   return `
-<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;line-height:${lineHeight};color:#000;background:none;width:100%">
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:${fontSize};line-height:${lineHeight};color:#000;background:none;width:100%">
   <div style="display:flex;align-items:flex-start;justify-content:${headerPhoto ? "flex-start" : "center"};gap:14px;margin:0 0 4px 0">
     ${headerPhoto}
     <div style="flex:1;min-width:0;text-align:${headerPhoto ? "left" : "center"}">

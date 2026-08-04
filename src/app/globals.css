@@ -393,14 +393,24 @@ input:focus-visible {
   top: calc(100% + 10px);
   right: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
   gap: 14px;
-  width: min(720px, calc(100vw - 40px));
+  width: min(820px, calc(100vw - 40px));
   padding: 17px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
   box-shadow: 0 24px 60px rgba(23, 32, 47, 0.17);
+}
+
+.control-drawer__group {
+  grid-column: 1 / -1;
+  margin: 2px 0 -4px;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .control-drawer__panel label {

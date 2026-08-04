@@ -30,6 +30,8 @@ type ResumePreviewProps = {
   cvSectionGap: string;
   cvTopMargin?: string;
   cvBottomMargin?: string;
+  cvLeftMargin?: string;
+  cvRightMargin?: string;
   onOverflowChange?: (overflowAmount: number) => void;
 };
 
@@ -143,6 +145,8 @@ export function ResumePreview({
   cvSectionGap,
   cvTopMargin = "12px",
   cvBottomMargin = "12px",
+  cvLeftMargin = "12px",
+  cvRightMargin = "12px",
   onOverflowChange
 }: ResumePreviewProps) {
   const pageRef = useRef<HTMLDivElement | null>(null);
@@ -238,7 +242,9 @@ export function ResumePreview({
             ["--cv-line-height" as string]: cvLineHeight,
             ["--cv-section-gap" as string]: `${cvSectionGap}px`,
             ["--cv-top-margin" as string]: cvTopMargin,
-            ["--cv-bottom-margin" as string]: cvBottomMargin
+            ["--cv-bottom-margin" as string]: cvBottomMargin,
+            ["--cv-left-margin" as string]: cvLeftMargin,
+            ["--cv-right-margin" as string]: cvRightMargin
           } as CSSProperties
         }
       >
@@ -254,7 +260,7 @@ export function ResumePreview({
 
         <div className="min-h-full">
           <div ref={contentRef} className="min-h-full" style={{ display: "flex", alignItems: "stretch", minHeight: "1091px" }}>
-            <aside style={{ borderRight: "1px solid #e2e8f0", background: "#fcfbf7", paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", display: "flex", flexDirection: "column", minHeight: "100%", width: "38%" }}>
+            <aside style={{ borderRight: "1px solid #e2e8f0", background: "#fcfbf7", paddingLeft: "var(--cv-left-margin, 12px)", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", display: "flex", flexDirection: "column", minHeight: "100%", width: "38%" }}>
               <div style={{ marginBottom: "12px", textAlign: "center" }}>
                 {resume.personal.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -430,7 +436,7 @@ export function ResumePreview({
               <div style={{ flex: 1 }} />
             </aside>
 
-            <main style={{ paddingLeft: "12px", paddingRight: "12px", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", width: "62%", display: "flex", flexDirection: "column", flex: 1, rowGap: "var(--cv-section-gap, 14px)" }}>
+            <main style={{ paddingLeft: "12px", paddingRight: "var(--cv-right-margin, 12px)", paddingTop: "var(--cv-top-margin, 12px)", paddingBottom: "var(--cv-bottom-margin, 12px)", width: "62%", display: "flex", flexDirection: "column", flex: 1, rowGap: "var(--cv-section-gap, 14px)" }}>
               <section>
                 <SectionHeading title="Summary" icon={Star} />
                 <p

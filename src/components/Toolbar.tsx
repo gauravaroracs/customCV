@@ -3,6 +3,12 @@
 import { RecentApplication } from "@/types/resume";
 import { LoadingButton } from "@/components/LoadingButton";
 import {
+  atsFontSizeOptions,
+  atsPageMarginOptions,
+  cvFontSizeOptions,
+  cvMarginOptions
+} from "@/lib/cvSettings";
+import {
   Camera,
   ChevronDown,
   CircleHelp,
@@ -24,10 +30,14 @@ type ToolbarProps = {
   cvFontWeight: string;
   cvLineHeight: string;
   cvSectionGap: string;
+  atsFontSize: string;
   atsLineHeight: string;
   atsSectionGap: string;
+  atsPageMargin: string;
   cvTopMargin: string;
   cvBottomMargin: string;
+  cvLeftMargin: string;
+  cvRightMargin: string;
   disabled?: boolean;
   masterCvName: string | null;
   recentApplications: RecentApplication[];
@@ -42,10 +52,14 @@ type ToolbarProps = {
   onFontWeightChange: (value: string) => void;
   onLineHeightChange: (value: string) => void;
   onSectionGapChange: (value: string) => void;
+  onAtsFontSizeChange: (value: string) => void;
   onAtsLineHeightChange: (value: string) => void;
   onAtsSectionGapChange: (value: string) => void;
+  onAtsPageMarginChange: (value: string) => void;
   onTopMarginChange: (value: string) => void;
   onBottomMarginChange: (value: string) => void;
+  onLeftMarginChange: (value: string) => void;
+  onRightMarginChange: (value: string) => void;
   onImportClick: () => void;
   onExportClick: () => void;
   onCopyPlainText: () => void;
@@ -89,10 +103,14 @@ export function Toolbar({
   cvFontWeight,
   cvLineHeight,
   cvSectionGap,
+  atsFontSize,
   atsLineHeight,
   atsSectionGap,
+  atsPageMargin,
   cvTopMargin,
   cvBottomMargin,
+  cvLeftMargin,
+  cvRightMargin,
   disabled = false,
   masterCvName,
   recentApplications,
@@ -107,10 +125,14 @@ export function Toolbar({
   onFontWeightChange,
   onLineHeightChange,
   onSectionGapChange,
+  onAtsFontSizeChange,
   onAtsLineHeightChange,
   onAtsSectionGapChange,
+  onAtsPageMarginChange,
   onTopMarginChange,
   onBottomMarginChange,
+  onLeftMarginChange,
+  onRightMarginChange,
   onImportClick,
   onExportClick,
   onCopyPlainText,
@@ -180,14 +202,20 @@ export function Toolbar({
         <details className="control-drawer">
           <summary><SlidersHorizontal size={14} /> Layout controls <ChevronDown size={14} /></summary>
           <div className="control-drawer__panel">
-            <label>Font size<select value={cvFontSize} disabled={disabled} onChange={(event) => onFontSizeChange(event.target.value)}><option value="9px">9px · compact</option><option value="9.5px">9.5px · default</option><option value="10px">10px · comfortable</option><option value="10.5px">10.5px · large</option><option value="11px">11px · very large</option></select></label>
+            <div className="control-drawer__group">CV layout</div>
+            <label>CV text<select value={cvFontSize} disabled={disabled} onChange={(event) => onFontSizeChange(event.target.value)}>{cvFontSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Weight<select value={cvFontWeight} disabled={disabled} onChange={(event) => onFontWeightChange(event.target.value)}><option value="300">Light</option><option value="400">Regular</option><option value="450">Medium</option><option value="500">Semibold</option></select></label>
             <label>CV line <input type="range" min="1.35" max="1.85" step="0.05" value={cvLineHeight} disabled={disabled} onChange={(event) => onLineHeightChange(event.target.value)} /><output>{cvLineHeight}</output></label>
             <label>Section gap <input type="range" min="8" max="24" step="1" value={cvSectionGap} disabled={disabled} onChange={(event) => onSectionGapChange(event.target.value)} /><output>{cvSectionGap}px</output></label>
+            <label>Top margin<select value={cvTopMargin} disabled={disabled} onChange={(event) => onTopMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>Bottom margin<select value={cvBottomMargin} disabled={disabled} onChange={(event) => onBottomMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>Left margin<select value={cvLeftMargin} disabled={disabled} onChange={(event) => onLeftMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>Right margin<select value={cvRightMargin} disabled={disabled} onChange={(event) => onRightMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <div className="control-drawer__group">ATS PDF</div>
+            <label>ATS text<select value={atsFontSize} disabled={disabled} onChange={(event) => onAtsFontSizeChange(event.target.value)}>{atsFontSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>ATS line <input type="range" min="1.05" max="1.6" step="0.05" value={atsLineHeight} disabled={disabled} onChange={(event) => onAtsLineHeightChange(event.target.value)} /><output>{atsLineHeight}</output></label>
             <label>ATS gap <input type="range" min="4" max="16" step="1" value={atsSectionGap} disabled={disabled} onChange={(event) => onAtsSectionGapChange(event.target.value)} /><output>{atsSectionGap}px</output></label>
-            <label>Top margin<select value={cvTopMargin} disabled={disabled} onChange={(event) => onTopMarginChange(event.target.value)}>{["4px", "8px", "12px", "18px", "24px", "32px", "40px"].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-            <label>Bottom margin<select value={cvBottomMargin} disabled={disabled} onChange={(event) => onBottomMarginChange(event.target.value)}>{["0px", "4px", "8px", "12px", "18px", "24px", "32px", "40px"].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label>ATS margin<select value={atsPageMargin} disabled={disabled} onChange={(event) => onAtsPageMarginChange(event.target.value)}>{atsPageMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <LoadingButton type="button" onClick={onCopyPlainText} loading={isCopyingPlainText} loadingLabel="Copying…" estimatedSeconds={2} disabled={disabled} className="control-drawer__copy"><FileJson size={14} /> Copy plain text</LoadingButton>
           </div>
         </details>
