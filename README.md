@@ -87,6 +87,14 @@ The app creates the database tables automatically on the first request.
 For application-status mirroring, set `N8N_SHEET_SYNC_WEBHOOK_URL` to an n8n
 webhook that updates the matching Google Sheets row by `job_id`.
 
+The inbox supports Best fit, Newest, and Oldest sorting. The n8n discovery button
+starts the workflow configured by `N8N_DISCOVERY_WEBHOOK_URL`; that workflow
+should asynchronously POST scored jobs back to the CVPilot ingestion endpoint.
+The Codex discovery button uses the OpenAI Responses web-search tool to find
+current specific listings and imports them without assigning a score. Existing
+n8n scores are preserved by the job upsert path. Keep these provider boundaries
+when adding product features such as plans, usage limits, or billing later.
+
 ## Scripts
 
 - `npm run dev` - start the local development server
