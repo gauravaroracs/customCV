@@ -39,6 +39,7 @@ const RECENT_APPS_STORAGE_KEY   = "cvPilot_recent";
 const FONT_SIZE_STORAGE_KEY     = "cvPilot_fontSize";
 const FONT_WEIGHT_STORAGE_KEY   = "cvFontWeight";
 const LINE_HEIGHT_STORAGE_KEY   = "cvPilot_lineHeight";
+const LINE_GAP_STORAGE_KEY      = "cvPilot_lineGap";
 const SECTION_GAP_STORAGE_KEY   = "cvPilot_sectionGap";
 const ATS_FONT_SIZE_STORAGE_KEY = "cvPilot_atsFontSize";
 const ATS_LINE_HEIGHT_STORAGE_KEY = "cvPilot_atsLineHeight";
@@ -155,6 +156,7 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
     undefined;
   const cvFontWeight = window.localStorage.getItem(FONT_WEIGHT_STORAGE_KEY) ?? undefined;
   const cvLineHeight = window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
+  const cvLineGap = window.localStorage.getItem(LINE_GAP_STORAGE_KEY) ?? undefined;
   const cvSectionGap = window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
   const atsFontSize = window.localStorage.getItem(ATS_FONT_SIZE_STORAGE_KEY) ?? undefined;
   const atsLineHeight = window.localStorage.getItem(ATS_LINE_HEIGHT_STORAGE_KEY) ?? undefined;
@@ -203,6 +205,7 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
       cvFontSize,
       cvFontWeight,
       cvLineHeight,
+      cvLineGap,
       cvSectionGap,
       atsFontSize,
       atsLineHeight,
@@ -246,6 +249,7 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
       cvFontSize,
       cvFontWeight,
       cvLineHeight,
+      cvLineGap,
       cvSectionGap,
       atsFontSize,
       atsLineHeight,
@@ -271,6 +275,10 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
 
     if (cvLineHeight) {
       window.localStorage.setItem(LINE_HEIGHT_STORAGE_KEY, cvLineHeight);
+    }
+
+    if (cvLineGap) {
+      window.localStorage.setItem(LINE_GAP_STORAGE_KEY, cvLineGap);
     }
 
     if (cvSectionGap) {
@@ -794,6 +802,7 @@ export default function HomePage() {
         const nextFontSize = repoSettings.cvFontSize ?? legacyStoredFontSize ?? undefined;
         const nextFontWeight = repoSettings.cvFontWeight ?? legacyStoredFontWeight ?? undefined;
         const nextLineHeight = repoSettings.cvLineHeight ?? window.localStorage.getItem(LINE_HEIGHT_STORAGE_KEY) ?? undefined;
+        const nextLineGap = repoSettings.cvLineGap ?? window.localStorage.getItem(LINE_GAP_STORAGE_KEY) ?? undefined;
         const nextSectionGap = repoSettings.cvSectionGap ?? window.localStorage.getItem(SECTION_GAP_STORAGE_KEY) ?? undefined;
         const nextAtsFontSize =
           repoSettings.atsFontSize ??
@@ -847,6 +856,7 @@ export default function HomePage() {
           cvFontSize: nextFontSize,
           cvFontWeight: nextFontWeight,
           cvLineHeight: nextLineHeight,
+          cvLineGap: nextLineGap,
           cvSectionGap: nextSectionGap,
           atsFontSize: nextAtsFontSize,
           atsLineHeight: nextAtsLineHeight,
@@ -872,6 +882,7 @@ export default function HomePage() {
               cvFontSize: nextFontSize,
               cvFontWeight: nextFontWeight,
               cvLineHeight: nextLineHeight,
+              cvLineGap: nextLineGap,
               cvSectionGap: nextSectionGap,
               atsFontSize: nextAtsFontSize,
               atsLineHeight: nextAtsLineHeight,
@@ -1257,6 +1268,7 @@ export default function HomePage() {
         cvFontSize={settings.cvFontSize}
         cvFontWeight={settings.cvFontWeight}
         cvLineHeight={settings.cvLineHeight}
+        cvLineGap={settings.cvLineGap}
         cvSectionGap={settings.cvSectionGap}
         atsFontSize={settings.atsFontSize}
         atsLineHeight={settings.atsLineHeight}
@@ -1270,6 +1282,7 @@ export default function HomePage() {
         onFontSizeChange={(value) => updateSettings({ cvFontSize: value })}
         onFontWeightChange={(value) => updateSettings({ cvFontWeight: value })}
         onLineHeightChange={(value) => updateSettings({ cvLineHeight: value })}
+        onLineGapChange={(value) => updateSettings({ cvLineGap: value })}
         onSectionGapChange={(value) => updateSettings({ cvSectionGap: value })}
         onAtsFontSizeChange={(value) => updateSettings({ atsFontSize: value })}
         onAtsLineHeightChange={(value) => updateSettings({ atsLineHeight: value })}
@@ -1369,6 +1382,7 @@ export default function HomePage() {
               cvFontSize={settings.cvFontSize}
               cvFontWeight={settings.cvFontWeight}
               cvLineHeight={settings.cvLineHeight}
+              cvLineGap={settings.cvLineGap}
               cvSectionGap={settings.cvSectionGap}
               cvTopMargin={settings.cvTopMargin}
               cvBottomMargin={settings.cvBottomMargin}

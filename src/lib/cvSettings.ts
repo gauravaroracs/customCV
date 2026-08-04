@@ -5,6 +5,7 @@ export type CvPilotSettings = {
   cvFontSize: string;
   cvFontWeight: string;
   cvLineHeight: string;
+  cvLineGap: string;
   cvSectionGap: string;
   atsFontSize: string;
   atsLineHeight: string;
@@ -21,6 +22,7 @@ export const cvSettingsDefaults: CvPilotSettings = {
   cvFontSize: "9.5px",
   cvFontWeight: "400",
   cvLineHeight: "1.6",
+  cvLineGap: "3",
   cvSectionGap: "14",
   atsFontSize: "11px",
   atsLineHeight: "1.25",
@@ -118,6 +120,7 @@ export function normalizeCvPilotSettings(
       base.cvFontWeight
     ),
     cvLineHeight: normalizeSliderValue(patch.cvLineHeight, base.cvLineHeight, 1.35, 1.85),
+    cvLineGap: normalizeSliderValue(patch.cvLineGap, base.cvLineGap, 0, 8, 0),
     cvSectionGap: normalizeSliderValue(patch.cvSectionGap, base.cvSectionGap, 8, 24, 0),
     atsFontSize: normalizeSelectValue(patch.atsFontSize, atsFontSizeOptions, base.atsFontSize),
     atsLineHeight: normalizeSliderValue(patch.atsLineHeight, base.atsLineHeight, 1.05, 1.6),

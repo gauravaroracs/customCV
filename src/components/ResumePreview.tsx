@@ -27,6 +27,7 @@ type ResumePreviewProps = {
   cvFontSize: string;
   cvFontWeight: string;
   cvLineHeight: string;
+  cvLineGap: string;
   cvSectionGap: string;
   cvTopMargin?: string;
   cvBottomMargin?: string;
@@ -142,6 +143,7 @@ export function ResumePreview({
   cvFontSize,
   cvFontWeight,
   cvLineHeight,
+  cvLineGap,
   cvSectionGap,
   cvTopMargin = "12px",
   cvBottomMargin = "12px",
@@ -199,7 +201,7 @@ export function ResumePreview({
       observer.disconnect();
       window.removeEventListener("resize", measureOverflow);
     };
-  }, [cvFontSize, cvLineHeight, cvSectionGap, onOverflowChange, resume]);
+  }, [cvFontSize, cvLineHeight, cvLineGap, cvSectionGap, onOverflowChange, resume]);
 
   const initials = resume.personal.name
     .split(" ")
@@ -240,6 +242,7 @@ export function ResumePreview({
             ["--cv-font-size-h" as string]: "calc(var(--cv-font-size) - 0.5px)",
             ["--cv-font-weight" as string]: cvFontWeight,
             ["--cv-line-height" as string]: cvLineHeight,
+            ["--cv-line-gap" as string]: `${cvLineGap}px`,
             ["--cv-section-gap" as string]: `${cvSectionGap}px`,
             ["--cv-top-margin" as string]: cvTopMargin,
             ["--cv-bottom-margin" as string]: cvBottomMargin,
@@ -336,7 +339,7 @@ export function ResumePreview({
 
               <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Contact" icon={UserRound} />
-                <div className="space-y-2">
+                <div style={{ display: "grid", gap: "calc(var(--cv-line-gap, 3px) * 2)" }}>
                   <ContactItem icon={Mail} text={resume.personal.email.replace(/\*\*/g, "")} />
                   <ContactItem icon={Phone} text={resume.personal.phone.replace(/\*\*/g, "")} />
                   <ContactItem
@@ -364,7 +367,7 @@ export function ResumePreview({
 
               <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Skills" icon={Wrench} />
-                <div className="space-y-3">
+                <div style={{ display: "grid", gap: "calc(var(--cv-line-gap, 3px) * 3)" }}>
                   {Object.entries(resume.skills).map(([group, values]) => (
                     <div key={group}>
                       <div
@@ -382,7 +385,7 @@ export function ResumePreview({
                         style={{
                           display: "flex",
                           flexWrap: "wrap",
-                          gap: "4px",
+                          gap: "calc(var(--cv-line-gap, 3px) + 1px)",
                           marginTop: "5px"
                         }}
                       >
@@ -413,7 +416,7 @@ export function ResumePreview({
 
               <section style={{ marginBottom: "var(--cv-section-gap, 14px)" }}>
                 <SectionHeading title="Languages" icon={Languages} />
-                <div className="space-y-2">
+                <div style={{ display: "grid", gap: "calc(var(--cv-line-gap, 3px) * 2)" }}>
                   {resume.languages.map((lang) => (
                     <div
                       key={`${getLanguageName(lang)}-${lang.level}`}
@@ -486,7 +489,7 @@ export function ResumePreview({
                         }}
                       >
                         {exp.bullets.map((bullet, bulletIndex) => (
-                          <li key={`${exp.company}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
+                          <li key={`${exp.company}-bullet-${bulletIndex}`} style={{ margin: "var(--cv-line-gap, 3px) 0" }}>
                             {renderInlineText(bullet)}
                           </li>
                         ))}
@@ -545,7 +548,7 @@ export function ResumePreview({
                           }}
                         >
                           {item.details.map((detail, detailIndex) => (
-                            <li key={`${item.institution}-detail-${detailIndex}`} style={{ margin: "3px 0" }}>
+                            <li key={`${item.institution}-detail-${detailIndex}`} style={{ margin: "var(--cv-line-gap, 3px) 0" }}>
                               {renderInlineText(detail)}
                             </li>
                           ))}
@@ -594,7 +597,7 @@ export function ResumePreview({
                         {award.description ? (
                           <p
                             style={{
-                              marginTop: "3px",
+                              marginTop: "var(--cv-line-gap, 3px)",
                               fontSize: "var(--cv-font-size, 9.5px)",
                               fontWeight: ("var(--cv-font-weight, 400)" as unknown) as number,
                               lineHeight: "var(--cv-line-height, 1.6)",
@@ -645,7 +648,7 @@ export function ResumePreview({
                         }}
                       >
                         {project.bullets.map((bullet, bulletIndex) => (
-                          <li key={`${project.name}-bullet-${bulletIndex}`} style={{ margin: "3px 0" }}>
+                          <li key={`${project.name}-bullet-${bulletIndex}`} style={{ margin: "var(--cv-line-gap, 3px) 0" }}>
                             {renderInlineText(bullet)}
                           </li>
                         ))}

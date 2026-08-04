@@ -29,6 +29,7 @@ type ToolbarProps = {
   cvFontSize: string;
   cvFontWeight: string;
   cvLineHeight: string;
+  cvLineGap: string;
   cvSectionGap: string;
   atsFontSize: string;
   atsLineHeight: string;
@@ -51,6 +52,7 @@ type ToolbarProps = {
   onFontSizeChange: (value: string) => void;
   onFontWeightChange: (value: string) => void;
   onLineHeightChange: (value: string) => void;
+  onLineGapChange: (value: string) => void;
   onSectionGapChange: (value: string) => void;
   onAtsFontSizeChange: (value: string) => void;
   onAtsLineHeightChange: (value: string) => void;
@@ -102,6 +104,7 @@ export function Toolbar({
   cvFontSize,
   cvFontWeight,
   cvLineHeight,
+  cvLineGap,
   cvSectionGap,
   atsFontSize,
   atsLineHeight,
@@ -124,6 +127,7 @@ export function Toolbar({
   onFontSizeChange,
   onFontWeightChange,
   onLineHeightChange,
+  onLineGapChange,
   onSectionGapChange,
   onAtsFontSizeChange,
   onAtsLineHeightChange,
@@ -206,6 +210,7 @@ export function Toolbar({
             <label>CV text<select value={cvFontSize} disabled={disabled} onChange={(event) => onFontSizeChange(event.target.value)}>{cvFontSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Weight<select value={cvFontWeight} disabled={disabled} onChange={(event) => onFontWeightChange(event.target.value)}><option value="300">Light</option><option value="400">Regular</option><option value="450">Medium</option><option value="500">Semibold</option></select></label>
             <label>CV line <input type="range" min="1.35" max="1.85" step="0.05" value={cvLineHeight} disabled={disabled} onChange={(event) => onLineHeightChange(event.target.value)} /><output>{cvLineHeight}</output></label>
+            <label>Line gap <input type="range" min="0" max="8" step="1" value={cvLineGap} disabled={disabled} onChange={(event) => onLineGapChange(event.target.value)} /><output>{cvLineGap}px</output></label>
             <label>Section gap <input type="range" min="8" max="24" step="1" value={cvSectionGap} disabled={disabled} onChange={(event) => onSectionGapChange(event.target.value)} /><output>{cvSectionGap}px</output></label>
             <label>Top margin<select value={cvTopMargin} disabled={disabled} onChange={(event) => onTopMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
             <label>Bottom margin<select value={cvBottomMargin} disabled={disabled} onChange={(event) => onBottomMarginChange(event.target.value)}>{cvMarginOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
