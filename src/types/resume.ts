@@ -109,13 +109,27 @@ export type MatchBreakdown = {
   overall: number;
 };
 
+export type TailorPromptDebug = {
+  model: string;
+  system: string;
+  user: string;
+  tokenEstimate?: {
+    system: number;
+    user: number;
+    total: number;
+  };
+};
+
 export type TailorResponse = {
   tailoredCV: ResumeData;
   changes: string[];
   warnings: string[];
-  /** Kept optional for legacy saved responses; new tailoring never calculates scores. */
+  /** Optional for legacy saved responses. New tailoring returns an honest 0-100 score. */
   matchScore?: number;
   matchBreakdown?: MatchBreakdown;
+  prompt?: TailorPromptDebug;
+  rawResponse?: string;
+  model?: string;
 };
 
 /** Discrete JD-driven patch for review before merging into the working CV */

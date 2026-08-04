@@ -63,6 +63,9 @@ export type ApplicationRecord = {
   match_breakdown: unknown | null;
   warnings: unknown;
   gap_analysis: unknown;
+  ai_prompt: unknown | null;
+  ai_response: string | null;
+  ai_model: string;
   notes: string;
   follow_up_date: string | null;
   created_at: string;
@@ -127,6 +130,9 @@ async function ensureSchema() {
         match_breakdown JSONB,
         warnings JSONB NOT NULL DEFAULT '[]'::jsonb,
         gap_analysis JSONB NOT NULL DEFAULT '[]'::jsonb,
+        ai_prompt JSONB,
+        ai_response TEXT,
+        ai_model TEXT NOT NULL DEFAULT '',
         notes TEXT NOT NULL DEFAULT '',
         follow_up_date DATE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -152,6 +158,9 @@ async function ensureSchema() {
     ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS lifecycle_status TEXT NOT NULL DEFAULT 'active';
     ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS inactive_reason TEXT NOT NULL DEFAULT '';
     ALTER TABLE cvpilot_jobs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
+    ALTER TABLE cvpilot_applications ADD COLUMN IF NOT EXISTS ai_prompt JSONB;
+    ALTER TABLE cvpilot_applications ADD COLUMN IF NOT EXISTS ai_response TEXT;
+    ALTER TABLE cvpilot_applications ADD COLUMN IF NOT EXISTS ai_model TEXT NOT NULL DEFAULT '';
   `);
 }
 
@@ -338,25 +347,25 @@ export async function getApplicationByJob(jobId: string) {
   return result.rows[0] ? rowToApplication(result.rows[0]) : null;
 }
 
-export async function updateApplication(id: string, patch: Partial<Pick<ApplicationRecord, "status" | "preparation_status" | "current_step" | "preparation_error" | "tailored_cv" | "cover_letter" | "match_score" | "match_breakdown" | "warnings" | "gap_analysis" | "notes" | "follow_up_date">>, eventNote?: string) {
+export async function updateApplication(id: string, patch: Partial<Pick<ApplicationRecord, "status" | "preparation_status" | "current_step" | "preparation_error" | "tailored_cv" | "cover_letter" | "match_score" | "match_breakdown" | "warnings" | "gap_analysis" | "ai_prompt" | "ai_response" | "ai_model" | "notes" | "follow_up_date">>, eventNote?: string) {
   await ensureSchema();
   const fields: string[] = [];
   const values: unknown[] = [id];
   const valueKeys: string[] = [];
-  const allowed = ["status", "preparation_status", "current_step", "preparation_error", "tailored_cv", "cover_letter", "match_score", "match_breakdown", "warnings", "gap_analysis", "notes", "follow_up_date"] as const;
+  const allowed = ["status", "preparation_status", "current_step", "preparation_error", "tailored_cv", "cover_letter", "match_score", "match_breakdown", "warnings", "gap_analysis", "ai_prompt", "ai_response", "ai_model", "notes", "follow_up_date"] as const;
   for (const key of allowed) {
     if (!(key in patch)) continue;
     values.push(patch[key]);
     valueKeys.push(key);
     const valueIndex = values.length;
-    fields.push(`${key} = $${valueIndex}${["tailored_cv", "match_breakdown", "warnings", "gap_analysis"].includes(key) ? "::jsonb" : ""}`);
+    fields.push(`${key} = $${valueIndex}${["tailored_cv", "match_breakdown", "warnings", "gap_analysis", "ai_prompt"].includes(key) ? "::jsonb" : ""}`);
   }
   if (fields.length) fields.push("updated_at = NOW()");
   const result = await getPool().query(
     fields.length
       ? `UPDATE cvpilot_applications SET ${fields.join(", ")} WHERE id = $1 RETURNING *`
       : "SELECT * FROM cvpilot_applications WHERE id = $1",
-    values.map((value, index) => index > 0 && ["tailored_cv", "match_breakdown", "warnings", "gap_analysis"].includes(valueKeys[index - 1] ?? "") && value !== null ? JSON.stringify(value) : value)
+    values.map((value, index) => index > 0 && ["tailored_cv", "match_breakdown", "warnings", "gap_analysis", "ai_prompt"].includes(valueKeys[index - 1] ?? "") && value !== null ? JSON.stringify(value) : value)
   );
   if (eventNote && patch.status) {
     await getPool().query(

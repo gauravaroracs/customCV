@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CoverLetterPanel } from "@/components/CoverLetterPanel";
 import { LoadingButton } from "@/components/LoadingButton";
 import { MasterCvModal } from "@/components/MasterCvModal";
 import { ResumePreview } from "@/components/ResumePreview";
@@ -555,7 +554,6 @@ export default function HomePage() {
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
-  const [unifiedCoverLetter, setUnifiedCoverLetter] = useState("");
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
@@ -1126,12 +1124,11 @@ export default function HomePage() {
   };
 
   const handleUnifiedApplicationPrepared = useCallback(
-    ({ resume: preparedResume, metadata, coverLetter }: { resume: ResumeData; metadata: JobMetadata; coverLetter: string }) => {
+    ({ resume: preparedResume, metadata }: { resume: ResumeData; metadata: JobMetadata }) => {
       const nextResume = withStoredPhoto(normalizeResumeInput(preparedResume), storedPhotoRef.current);
       setResume(nextResume);
       setJsonDraft(resumeToEditorJson(nextResume));
       setJobMetadata(metadata);
-      setUnifiedCoverLetter(coverLetter);
       setJsonError(null);
       bumpEditorSync();
     },
@@ -1489,16 +1486,6 @@ export default function HomePage() {
             </div>
           </div>
           </div>
-        </section>
-
-        <section id="cover-letter" className="cover-section">
-          <CoverLetterPanel
-            candidateName={resume.personal.name}
-            company={jobMetadata.company}
-            role={jobMetadata.role}
-            cvFontWeight={cvFontWeight}
-            initialText={unifiedCoverLetter}
-          />
         </section>
       </main>
     </div>

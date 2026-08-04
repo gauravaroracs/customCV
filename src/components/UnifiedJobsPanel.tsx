@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { LoadingButton } from "@/components/LoadingButton";
+import { buildTailorCvPrompt } from "@/lib/tailorCvPrompt";
 import type { ApplicationRecord, JobRecord } from "@/lib/jobStore";
-import type { JobMetadata, ResumeData, TailorResponse, CoverLetterResponse } from "@/types/resume";
+import type { JobMetadata, MatchBreakdown, ResumeData, TailorPromptDebug, TailorResponse } from "@/types/resume";
 
 type Props = {
   masterCV: ResumeData | null;
-  onPrepared: (payload: { resume: ResumeData; metadata: JobMetadata; coverLetter: string }) => void;
+  onPrepared: (payload: { resume: ResumeData; metadata: JobMetadata }) => void;
 };
 
 type PreparationState = {
@@ -18,6 +19,16 @@ type PreparationState = {
 
 type DiscoverySource = "n8n" | "codex" | null;
 type SortMode = "fit" | "newest" | "oldest";
+
+type GenerationLog = {
+  prompt: TailorPromptDebug | null;
+  rawResponse: string;
+  changes: string[];
+  warnings: string[];
+  matchScore: number | null;
+  matchBreakdown: MatchBreakdown | null;
+  tailoredCV: ResumeData | null;
+};
 
 const reviewLabels: Record<JobRecord["review_status"], string> = {
   new: "New",
@@ -42,6 +53,31 @@ const numberOrNull = (value: number | string | null | undefined) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+const stringList = (value: unknown) => Array.isArray(value) ? value.map((item) => String(item ?? "").trim()).filter(Boolean) : [];
+
+const promptFromApplication = (application: ApplicationRecord): TailorPromptDebug | null => {
+  const value = application.ai_prompt;
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<TailorPromptDebug>;
+  if (typeof candidate.system !== "string" || typeof candidate.user !== "string") return null;
+  return {
+    model: typeof candidate.model === "string" ? candidate.model : application.ai_model || "AI model",
+    system: candidate.system,
+    user: candidate.user,
+    tokenEstimate: candidate.tokenEstimate
+  };
+};
+
+const generationLogFromApplication = (application: ApplicationRecord): GenerationLog => ({
+  prompt: promptFromApplication(application),
+  rawResponse: application.ai_response ?? "",
+  changes: stringList(application.gap_analysis),
+  warnings: stringList(application.warnings),
+  matchScore: numberOrNull(application.match_score),
+  matchBreakdown: application.match_breakdown as MatchBreakdown | null,
+  tailoredCV: application.tailored_cv as ResumeData | null
+});
 
 function jobDateValue(job: JobRecord) {
   const raw = String(job.posted_date ?? "").trim();
@@ -73,6 +109,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [importingJob, setImportingJob] = useState(false);
   const [jobAction, setJobAction] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [generationLog, setGenerationLog] = useState<GenerationLog | null>(null);
 
   const loadJobs = useCallback(async () => {
     setRefreshing(true);
@@ -133,17 +170,19 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
             step: payload.application.preparation_status === "ready" ? "Complete" : payload.application.current_step ?? "",
             error: payload.application.preparation_error
           });
-          if (payload.application.preparation_status === "ready" && payload.application.tailored_cv && payload.application.cover_letter) {
+          setGenerationLog(generationLogFromApplication(payload.application));
+          if (payload.application.preparation_status === "ready" && payload.application.tailored_cv) {
             onPrepared({
               resume: payload.application.tailored_cv as ResumeData,
-              metadata: { company: selectedJob.company ?? "", role: selectedJob.role ?? "", location: selectedJob.location ?? "" },
-              coverLetter: payload.application.cover_letter
+              metadata: { company: selectedJob.company ?? "", role: selectedJob.role ?? "", location: selectedJob.location ?? "" }
             });
           }
         } else {
           setPreparation({ application: null, step: "", error: null });
+          setGenerationLog(null);
         }
       } catch {
+        setGenerationLog(null);
         // The job can still be reviewed if the application lookup is unavailable.
       }
     };
@@ -206,7 +245,18 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       const jobDescription = job.job_description ?? "";
       if (!jobDescription.trim()) throw new Error("This job has no extracted description yet.");
 
-      await patchStep("Tailoring CV…");
+      const prompt = buildTailorCvPrompt(masterCV, jobDescription);
+      setGenerationLog({
+        prompt,
+        rawResponse: "",
+        changes: [],
+        warnings: [],
+        matchScore: null,
+        matchBreakdown: null,
+        tailoredCV: null
+      });
+
+      await patchStep("Generating CV JSON…");
       const tailorResponse = await fetch("/api/tailor-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -215,18 +265,22 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       const tailored = await tailorResponse.json() as TailorResponse & { error?: string };
       if (!tailorResponse.ok || !tailored.tailoredCV) throw new Error(tailored.error ?? "CV tailoring failed.");
 
-      await patchStep("Writing cover letter…");
-      const coverResponse = await fetch("/api/generate-cover-letter", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resume: tailored.tailoredCV,
-          jobDescription,
-          metadata: { company: job.company, role: job.role, location: job.location }
-        })
-      });
-      const cover = await coverResponse.json() as CoverLetterResponse & { error?: string };
-      if (!coverResponse.ok || !cover.coverLetter) throw new Error(cover.error ?? "Cover-letter generation failed.");
+      const nextGenerationLog: GenerationLog = {
+        prompt: tailored.prompt ?? prompt,
+        rawResponse: tailored.rawResponse ?? JSON.stringify({
+          tailoredCV: tailored.tailoredCV,
+          changes: tailored.changes ?? [],
+          warnings: tailored.warnings ?? [],
+          matchScore: tailored.matchScore ?? null,
+          matchBreakdown: tailored.matchBreakdown ?? null
+        }, null, 2),
+        changes: tailored.changes ?? [],
+        warnings: tailored.warnings ?? [],
+        matchScore: numberOrNull(tailored.matchScore),
+        matchBreakdown: tailored.matchBreakdown ?? null,
+        tailoredCV: tailored.tailoredCV
+      };
+      setGenerationLog(nextGenerationLog);
 
       const finishedResponse = await fetch(`/api/applications/${applicationId}`, {
         method: "PATCH",
@@ -236,12 +290,15 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           preparation_status: "ready",
           current_step: "Complete",
           tailored_cv: tailored.tailoredCV,
-          cover_letter: cover.coverLetter,
-          match_score: numberOrNull(job.match_score),
-          match_breakdown: null,
-          warnings: [...(tailored.warnings ?? []), ...(cover.warnings ?? [])],
+          cover_letter: null,
+          match_score: nextGenerationLog.matchScore,
+          match_breakdown: tailored.matchBreakdown ?? null,
+          warnings: tailored.warnings ?? [],
           gap_analysis: tailored.changes ?? [],
-          event_note: "Application package ready for review"
+          ai_prompt: nextGenerationLog.prompt,
+          ai_response: nextGenerationLog.rawResponse,
+          ai_model: tailored.model ?? nextGenerationLog.prompt?.model ?? "",
+          event_note: "CV ready for review"
         })
       });
       const finished = await finishedResponse.json() as { application?: ApplicationRecord; error?: string };
@@ -251,8 +308,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       void fetch(`/api/applications/${applicationId}/sync-sheet`, { method: "POST" });
       onPrepared({
         resume: tailored.tailoredCV,
-        metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" },
-        coverLetter: cover.coverLetter
+        metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" }
       });
       await loadJobs();
       return true;
@@ -293,13 +349,18 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       setImportUrl("");
       await loadJobs();
       setSelectedJob(payload.job);
-      setImportMessage("Job imported. Review it, then click Prepare application when you want to tailor the CV and write the cover letter.");
+      setImportMessage("Job imported. Review it, then click Prepare application when you want to generate the CV JSON.");
     } catch (importError) {
       setImportMessage(importError instanceof Error ? importError.message : "Could not import that job page.");
     } finally {
       setImportingJob(false);
     }
   };
+
+  const isPreparing = preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed";
+  const breakdownEntries = generationLog?.matchBreakdown
+    ? Object.entries(generationLog.matchBreakdown) as Array<[keyof MatchBreakdown, number]>
+    : [];
 
   return (
     <section id="job-inbox" className="no-print workspace-card inbox-card">
@@ -415,13 +476,93 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
               )}
               {selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}
             </div>
-            <LoadingButton type="button" onClick={() => void runPreparation()} loading={preparation.step !== "" && preparation.step !== "Complete" && preparation.step !== "Failed"} loadingLabel={preparation.step || "Preparing…"} estimatedSeconds={90} disabled={!masterCV || !canPrepareSelectedJob} className="prepare-button"><span>Prepare application</span><span>→</span></LoadingButton>
+            <LoadingButton type="button" onClick={() => void runPreparation()} loading={isPreparing} loadingLabel={preparation.step || "Preparing…"} estimatedSeconds={75} disabled={!masterCV || !canPrepareSelectedJob} className="prepare-button"><span>Prepare application</span><span>→</span></LoadingButton>
             {!masterCV ? <p className="detail-note">Set a Master CV above before preparing.</p> : null}
+            <p className="detail-note">CV-only mode is on. Cover-letter generation is disabled for now.</p>
             {selectedJobIsArchived ? <p className="detail-note">Archived roles stay in history but are hidden from the default inbox and cannot be prepared.</p> : null}
             {selectedJobIsInactive ? <p className="detail-note">This role is marked inactive in the backend. Restore it to active before preparing.</p> : null}
             {selectedJob.inactive_reason ? <p className="detail-note">Inactive reason: {selectedJob.inactive_reason}</p> : null}
-            {preparation.step === "Complete" ? <div className="alert alert--success">✓ Package ready. Your tailored CV and cover letter are loaded below.</div> : null}
+            {preparation.step === "Complete" ? <div className="alert alert--success">✓ CV ready. The generated JSON is loaded into CV Studio below.</div> : null}
             {preparation.error ? <div className="alert alert--error">{preparation.error}</div> : null}
+            {generationLog ? (
+              <div className="mt-4 space-y-4 rounded-3xl border border-violet-200 bg-violet-50/50 p-4 text-sm text-slate-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Transparent CV generation</div>
+                    <h4 className="mt-1 text-base font-black text-slate-950">Prompt, response, score, and next edits</h4>
+                    <p className="mt-1 text-xs text-slate-600">The generated JSON is automatically filled into the CV editor below for your final tweaks.</p>
+                  </div>
+                  <div className={`rounded-2xl px-4 py-2 text-center ${scoreClass(generationLog.matchScore)}`}>
+                    <strong className="block text-lg">{generationLog.matchScore ?? "—"}</strong>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">AI score</span>
+                  </div>
+                </div>
+
+                {generationLog.prompt ? (
+                  <details open className="rounded-2xl border border-violet-200 bg-white p-3">
+                    <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-violet-800">Prompt sent to {generationLog.prompt.model}</summary>
+                    {generationLog.prompt.tokenEstimate ? (
+                      <p className="mt-2 text-[11px] font-semibold text-slate-500">Estimated tokens: {generationLog.prompt.tokenEstimate.total} total, {generationLog.prompt.tokenEstimate.system} system, {generationLog.prompt.tokenEstimate.user} user</p>
+                    ) : null}
+                    <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                      <div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">System prompt</div>
+                        <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">{generationLog.prompt.system}</pre>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">User prompt</div>
+                        <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">{generationLog.prompt.user}</pre>
+                      </div>
+                    </div>
+                  </details>
+                ) : null}
+
+                <details open className="rounded-2xl border border-violet-200 bg-white p-3">
+                  <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-violet-800">AI response JSON</summary>
+                  {generationLog.rawResponse ? (
+                    <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">{generationLog.rawResponse}</pre>
+                  ) : (
+                    <div className="mt-3 flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-violet-800"><span className="loading-orb" /> Waiting for the AI response JSON…</div>
+                  )}
+                </details>
+
+                {(breakdownEntries.length > 0 || generationLog.changes.length > 0 || generationLog.warnings.length > 0) ? (
+                  <div className="rounded-2xl border border-violet-200 bg-white p-3">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-800">AI modifications and score notes</div>
+                    {breakdownEntries.length > 0 ? (
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                        {breakdownEntries.map(([label, value]) => (
+                          <div key={label} className="rounded-xl bg-slate-50 p-2">
+                            <span className="block font-bold capitalize text-slate-500">{label}</span>
+                            <strong className="text-slate-950">{Math.round(Number(value))}%</strong>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {generationLog.changes.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-emerald-700">Modifications to review</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-700">
+                          {generationLog.changes.map((change, index) => <li key={`${change}-${index}`}>{change}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {generationLog.warnings.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-amber-700">Gaps and verification notes</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-amber-900">
+                          {generationLog.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {generationLog.tailoredCV ? (
+                  <a href="#cv-studio" className="button button--outline inline-flex">Make final CV tweaks ↓</a>
+                ) : null}
+              </div>
+            ) : null}
           </> : <div className="detail-empty"><div className="detail-empty__icon">✦</div><strong>Choose a role to inspect</strong><span>Your shortlist and fit notes will appear here.</span></div>}
         </div>
       </div>

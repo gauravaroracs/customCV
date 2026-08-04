@@ -28,6 +28,9 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       match_breakdown?: unknown;
       warnings?: unknown;
       gap_analysis?: unknown;
+      ai_prompt?: unknown;
+      ai_response?: string | null;
+      ai_model?: string;
       notes?: string;
       follow_up_date?: string | null;
       event_note?: string;
