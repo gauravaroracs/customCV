@@ -8,6 +8,8 @@ import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
 import { UnifiedJobsPanel } from "@/components/UnifiedJobsPanel";
 import { generateATSText, generateATSHtml, getATSPdfTitle } from "@/lib/cvText";
+import { versions, type CvPilotSettings } from "@/lib/cvSettings";
+import { useSettings } from "@/lib/useSettings";
 import { resumeToEditorJson } from "@/lib/resumeEditorJson";
 import { sampleResume } from "@/data/sampleResume";
 import {
@@ -43,27 +45,13 @@ const ATS_SECTION_GAP_STORAGE_KEY = "cvPilot_atsSectionGap";
 const PHOTO_STORAGE_KEY         = "cvPilot_photo";
 const ATS_PRINT_STYLE_ID        = "cvpilot-ats-print-style";
 
-type CvPilotSettings = {
-  selectedVersion?: string;
-  cvFontSize?: string;
-  cvFontWeight?: string;
-  cvLineHeight?: string;
-  cvSectionGap?: string;
-  atsLineHeight?: string;
-  atsSectionGap?: string;
-  cvTopMargin?: string;
-  cvBottomMargin?: string;
-};
-
 type CvPilotStorageSnapshot = {
   masterCV?: unknown;
   workingCV?: unknown;
   recentApplications?: unknown[];
-  settings?: CvPilotSettings;
+  settings?: Partial<CvPilotSettings>;
   photo?: string;
 };
-
-const versions = ["Java Backend Heavy", "General Tech", "Germany Targeted"];
 
 const emptyMetadata: JobMetadata = {
   company: "",
@@ -549,7 +537,6 @@ export default function HomePage() {
   const [resume, setResume] = useState<ResumeData>(sampleResume);
   resumeRef.current = resume;
   const [masterCV, setMasterCV] = useState<ResumeData | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState(versions[0]);
   const [editorSyncNonce, setEditorSyncNonce] = useState(0);
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -559,14 +546,12 @@ export default function HomePage() {
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
   const [hasStoredMasterCV, setHasStoredMasterCV] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [cvFontSize, setCvFontSize] = useState("9.5px");
-  const [cvFontWeight, setCvFontWeight] = useState("400");
-  const [cvLineHeight, setCvLineHeight] = useState("1.6");
-  const [cvSectionGap, setCvSectionGap] = useState("14");
-  const [atsLineHeight, setAtsLineHeight] = useState("1.25");
-  const [atsSectionGap, setAtsSectionGap] = useState("7");
-  const [cvTopMargin, setCvTopMargin] = useState("12px");
-  const [cvBottomMargin, setCvBottomMargin] = useState("12px");
+  const { settings, applyStoredSettings, updateSettings } = useSettings({
+    enabled: isHydrated,
+    onPersist: (nextSettings) => {
+      void patchRepoStorage({ settings: nextSettings });
+    }
+  });
   const [previewOverflowAmount, setPreviewOverflowAmount] = useState(0);
   const [isCopyingPlainText, setIsCopyingPlainText] = useState(false);
   const [isImportingJson, setIsImportingJson] = useState(false);
@@ -799,41 +784,17 @@ export default function HomePage() {
           setResume(nextResume);
         }
 
-        if (nextSelectedVersion && versions.includes(nextSelectedVersion)) {
-          setSelectedVersion(nextSelectedVersion);
-        }
-
-        if (nextFontSize) {
-          setCvFontSize(nextFontSize);
-        }
-
-        if (nextFontWeight) {
-          setCvFontWeight(nextFontWeight);
-        }
-
-        if (nextLineHeight) {
-          setCvLineHeight(nextLineHeight);
-        }
-
-        if (nextSectionGap) {
-          setCvSectionGap(nextSectionGap);
-        }
-
-        if (nextAtsLineHeight) {
-          setAtsLineHeight(nextAtsLineHeight);
-        }
-
-        if (nextAtsSectionGap) {
-          setAtsSectionGap(nextAtsSectionGap);
-        }
-
-        if (nextTopMargin) {
-          setCvTopMargin(nextTopMargin);
-        }
-
-        if (nextBottomMargin) {
-          setCvBottomMargin(nextBottomMargin);
-        }
+        applyStoredSettings({
+          selectedVersion: nextSelectedVersion,
+          cvFontSize: nextFontSize,
+          cvFontWeight: nextFontWeight,
+          cvLineHeight: nextLineHeight,
+          cvSectionGap: nextSectionGap,
+          atsLineHeight: nextAtsLineHeight,
+          atsSectionGap: nextAtsSectionGap,
+          cvTopMargin: nextTopMargin,
+          cvBottomMargin: nextBottomMargin
+        });
 
         setRecentApplications(nextRecentApplications);
         setIsHydrated(true);
@@ -877,7 +838,7 @@ export default function HomePage() {
       abortController.abort();
       window.clearTimeout(failsafeId);
     };
-  }, []);
+  }, [applyStoredSettings]);
 
   // Debounced auto-save of working CV (500 ms)
   useEffect(() => {
@@ -890,95 +851,7 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [isHydrated, resume]);
 
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
 
-    void patchRepoStorage({ settings: { selectedVersion } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The version preference could not be saved.");
-    });
-  }, [isHydrated, selectedVersion]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvFontSize } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The font size preference could not be saved.");
-    });
-  }, [cvFontSize, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvFontWeight } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The font weight preference could not be saved.");
-    });
-  }, [cvFontWeight, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvLineHeight } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The line spacing preference could not be saved.");
-    });
-  }, [cvLineHeight, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvSectionGap } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The section spacing preference could not be saved.");
-    });
-  }, [cvSectionGap, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { atsLineHeight } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The ATS line spacing preference could not be saved.");
-    });
-  }, [atsLineHeight, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { atsSectionGap } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The ATS section spacing preference could not be saved.");
-    });
-  }, [atsSectionGap, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvTopMargin } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The top margin preference could not be saved.");
-    });
-  }, [cvTopMargin, isHydrated]);
-
-  useEffect(() => {
-    if (!isHydrated) {
-      return;
-    }
-
-    void patchRepoStorage({ settings: { cvBottomMargin } }).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError.message : "The bottom margin preference could not be saved.");
-    });
-  }, [cvBottomMargin, isHydrated]);
 
   useEffect(() => {
     const previewElement = document.getElementById("cv-preview");
@@ -986,8 +859,8 @@ export default function HomePage() {
       return;
     }
 
-    previewElement.style.setProperty("--cv-font-size", cvFontSize);
-  }, [cvFontSize, resume]);
+    previewElement.style.setProperty("--cv-font-size", settings.cvFontSize);
+  }, [settings.cvFontSize, resume]);
 
   useEffect(() => {
     if (!isHydrated) {
@@ -1292,8 +1165,8 @@ export default function HomePage() {
 
   // Build the ATS HTML whenever resume changes
   const atsHtml = generateATSHtml(resume, {
-    lineHeight: atsLineHeight,
-    sectionGap: atsSectionGap
+    lineHeight: settings.atsLineHeight,
+    sectionGap: settings.atsSectionGap
   });
 
   return (
@@ -1306,7 +1179,7 @@ export default function HomePage() {
       />
 
       <Toolbar
-        selectedVersion={selectedVersion}
+        selectedVersion={settings.selectedVersion}
         versions={versions}
         disabled={!isHydrated}
         masterCvName={hasStoredMasterCV && masterCV ? (masterCV.personal.name || "Set") : null}
@@ -1314,23 +1187,23 @@ export default function HomePage() {
         applicationElapsedMs={applicationElapsedMs}
         isApplicationTimerRunning={applicationTimerStartedAt !== null}
         hasPhoto={Boolean(resume.personal.photoUrl)}
-        cvFontSize={cvFontSize}
-        cvFontWeight={cvFontWeight}
-        cvLineHeight={cvLineHeight}
-        cvSectionGap={cvSectionGap}
-        atsLineHeight={atsLineHeight}
-        atsSectionGap={atsSectionGap}
-        cvTopMargin={cvTopMargin}
-        cvBottomMargin={cvBottomMargin}
-        onVersionChange={setSelectedVersion}
-        onFontSizeChange={setCvFontSize}
-        onFontWeightChange={setCvFontWeight}
-        onLineHeightChange={setCvLineHeight}
-        onSectionGapChange={setCvSectionGap}
-        onAtsLineHeightChange={setAtsLineHeight}
-        onAtsSectionGapChange={setAtsSectionGap}
-        onTopMarginChange={setCvTopMargin}
-        onBottomMarginChange={setCvBottomMargin}
+        cvFontSize={settings.cvFontSize}
+        cvFontWeight={settings.cvFontWeight}
+        cvLineHeight={settings.cvLineHeight}
+        cvSectionGap={settings.cvSectionGap}
+        atsLineHeight={settings.atsLineHeight}
+        atsSectionGap={settings.atsSectionGap}
+        cvTopMargin={settings.cvTopMargin}
+        cvBottomMargin={settings.cvBottomMargin}
+        onVersionChange={(value) => updateSettings({ selectedVersion: value })}
+        onFontSizeChange={(value) => updateSettings({ cvFontSize: value })}
+        onFontWeightChange={(value) => updateSettings({ cvFontWeight: value })}
+        onLineHeightChange={(value) => updateSettings({ cvLineHeight: value })}
+        onSectionGapChange={(value) => updateSettings({ cvSectionGap: value })}
+        onAtsLineHeightChange={(value) => updateSettings({ atsLineHeight: value })}
+        onAtsSectionGapChange={(value) => updateSettings({ atsSectionGap: value })}
+        onTopMarginChange={(value) => updateSettings({ cvTopMargin: value })}
+        onBottomMarginChange={(value) => updateSettings({ cvBottomMargin: value })}
         onImportClick={() => handleImportClick("working")}
         onExportClick={handleExport}
         onCopyPlainText={handleCopyPlainText}
@@ -1418,12 +1291,12 @@ export default function HomePage() {
             <ResumePreview
               resume={resume}
               isLoading={false}
-              cvFontSize={cvFontSize}
-              cvFontWeight={cvFontWeight}
-              cvLineHeight={cvLineHeight}
-              cvSectionGap={cvSectionGap}
-              cvTopMargin={cvTopMargin}
-              cvBottomMargin={cvBottomMargin}
+              cvFontSize={settings.cvFontSize}
+              cvFontWeight={settings.cvFontWeight}
+              cvLineHeight={settings.cvLineHeight}
+              cvSectionGap={settings.cvSectionGap}
+              cvTopMargin={settings.cvTopMargin}
+              cvBottomMargin={settings.cvBottomMargin}
               onOverflowChange={setPreviewOverflowAmount}
             />
             <div className="no-print mt-3 flex justify-center">

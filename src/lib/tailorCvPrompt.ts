@@ -34,12 +34,11 @@ Map the requested steps into the API fields like this:
 
 HARD CONSTRAINTS
 Never violate these regardless of JD content.
-1. Primary role: exactly 6 bullets, max 20 words each.
-2. Secondary role: exactly 2 bullets, max 20 words each.
-3. Exactly 1 project, highest domain match only.
-4. Exactly 1 award, and it must say "3rd place winner" in the title or first line.
-5. Profile: exactly 2 sentences, max 35 words total.
-6. Keep the same top-level field names and key order as the master resume JSON, but omit meta.
+1. Preserve every experience role in the master resume. Primary role: exactly 6 bullets, max 20 words each. Every additional role: exactly 2 bullets, max 20 words each.
+2. Preserve every project in the master resume. Never drop or merge projects.
+3. Preserve every award in the master resume. Never drop awards.
+4. Profile: exactly 2 sentences, max 35 words total.
+5. Keep the same top-level field names and key order as the master resume JSON, but omit meta.
 
 WHAT TO BUILD
 Produce the equivalent of Steps 1, 2, 3, and 4 in one response, but expressed through the API schema above.
@@ -66,8 +65,9 @@ Skills
 - Include "Soft Skills" only if JD explicitly mentions communication or teamwork
 
 Experience
+- Preserve every role in the master resume; do not drop, merge, or reorder roles
 - Score every master bullet against JD must-haves with 0/1/2 logic
-- Select top 6 bullets from the primary role and top 2 from the secondary role
+- Primary role: select the top 6 bullets. Each additional role: select the top 2 bullets
 - If a JD must-have has zero matches, add at most 1 inferred bullet to the most relevant entry
 - Every bullet must follow: past-tense verb + what you built or solved + result or scale
 - No tech stack in bullets
@@ -76,16 +76,16 @@ Experience
 - Inferred bullets must be past tense, verb first, result last, max 15 words
 
 Awards
-- Exactly 1 entry
-- Title or first line must include "3rd place Winner"
-- Max 2 sentences, 25 words total
+- Preserve every award entry from the master resume, in the same order
+- Max 2 sentences, 25 words total per award
+- Keep "3rd place Winner" in the title or first line when the master entry contains it
 - What you built plus result only
 
 Projects
-- Exactly 1 entry with highest domain_tags match to the JD
-- Skip a project that duplicates an experience bullet. If the best match duplicates, use the next best non-duplicate.
-- Bullet 1: what you built plus scale or complexity, max 14 words
-- Bullet 2: most JD-relevant technical detail, max 14 words
+- Preserve every project from the master resume, ordered by highest domain match to the JD
+- Skip a project only when it fully duplicates an experience bullet; keep all other projects
+- Each project: bullet 1 what you built plus scale or complexity, max 14 words
+- Each project: bullet 2 most JD-relevant technical detail, max 14 words
 - Put the tech stack on the title line only
 
 Education

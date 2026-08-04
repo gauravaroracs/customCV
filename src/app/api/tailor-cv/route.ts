@@ -140,8 +140,6 @@ export async function POST(request: Request) {
                   },
                   awards: {
                     type: "array",
-                    minItems: 1,
-                    maxItems: 1,
                     items: {
                       type: "object",
                       additionalProperties: false,
@@ -157,8 +155,6 @@ export async function POST(request: Request) {
                   },
                   experience: {
                     type: "array",
-                    minItems: 2,
-                    maxItems: 2,
                     items: {
                       type: "object",
                       additionalProperties: false,
@@ -174,8 +170,6 @@ export async function POST(request: Request) {
                   },
                   projects: {
                     type: "array",
-                    minItems: 1,
-                    maxItems: 1,
                     items: {
                       type: "object",
                       additionalProperties: false,
