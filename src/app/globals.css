@@ -431,6 +431,7 @@ input:focus-visible {
 }
 
 .control-drawer__panel output {
+  pointer-events: none;
   margin-top: -27px;
   color: var(--ink);
   font-size: 10px;
