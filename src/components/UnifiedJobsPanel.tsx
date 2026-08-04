@@ -8,7 +8,7 @@ import type { JobMetadata, MatchBreakdown, ResumeData, TailorPromptDebug, Tailor
 
 type Props = {
   masterCV: ResumeData | null;
-  onPrepared: (payload: { resume: ResumeData; metadata: JobMetadata }) => void;
+  onPrepared: (payload: { resume: ResumeData; metadata: JobMetadata; jobDescription: string }) => void;
 };
 
 type PreparationState = {
@@ -174,7 +174,8 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           if (payload.application.preparation_status === "ready" && payload.application.tailored_cv) {
             onPrepared({
               resume: payload.application.tailored_cv as ResumeData,
-              metadata: { company: selectedJob.company ?? "", role: selectedJob.role ?? "", location: selectedJob.location ?? "" }
+              metadata: { company: selectedJob.company ?? "", role: selectedJob.role ?? "", location: selectedJob.location ?? "" },
+              jobDescription: selectedJob.job_description ?? ""
             });
           }
         } else {
@@ -308,7 +309,8 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       void fetch(`/api/applications/${applicationId}/sync-sheet`, { method: "POST" });
       onPrepared({
         resume: tailored.tailoredCV,
-        metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" }
+        metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" },
+        jobDescription: job.job_description ?? ""
       });
       await loadJobs();
       return true;

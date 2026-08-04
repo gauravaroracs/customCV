@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { LoadingButton } from "@/components/LoadingButton";
+import { CoverLetterPanel } from "@/components/CoverLetterPanel";
 import { MasterCvModal } from "@/components/MasterCvModal";
 import { ResumePreview } from "@/components/ResumePreview";
 import { Toolbar } from "@/components/Toolbar";
@@ -13,6 +14,7 @@ import { useSettings } from "@/lib/useSettings";
 import { resumeToEditorJson } from "@/lib/resumeEditorJson";
 import { sampleResume } from "@/data/sampleResume";
 import {
+  CoverLetterResponse,
   JobMetadata,
   RecentApplication,
   ResumeData
@@ -48,6 +50,7 @@ const ATS_PAGE_MARGIN_STORAGE_KEY = "cvPilot_atsPageMargin";
 const CV_LEFT_MARGIN_STORAGE_KEY = "cvPilot_leftMargin";
 const CV_RIGHT_MARGIN_STORAGE_KEY = "cvPilot_rightMargin";
 const PHOTO_STORAGE_KEY         = "cvPilot_photo";
+const COVER_LETTER_STORAGE_KEY  = "cvPilot_coverLetter";
 const ATS_PRINT_STYLE_ID        = "cvpilot-ats-print-style";
 
 type CvPilotStorageSnapshot = {
@@ -56,6 +59,7 @@ type CvPilotStorageSnapshot = {
   recentApplications?: unknown[];
   settings?: Partial<CvPilotSettings>;
   photo?: string;
+  coverLetter?: string;
 };
 
 const emptyMetadata: JobMetadata = {
@@ -200,6 +204,10 @@ function readBrowserStorage(): CvPilotStorageSnapshot {
       window.localStorage.getItem(PHOTO_STORAGE_KEY) ??
       window.localStorage.getItem("cvPhoto") ??
       "",
+    coverLetter:
+      window.localStorage.getItem(COVER_LETTER_STORAGE_KEY) ??
+      window.localStorage.getItem("cvPilotCoverLetter") ??
+      "",
     settings: {
       selectedVersion,
       cvFontSize,
@@ -241,6 +249,10 @@ function patchBrowserStorage(payload: CvPilotStorageSnapshot) {
 
   if ("photo" in payload) {
     window.localStorage.setItem(PHOTO_STORAGE_KEY, payload.photo ?? "");
+  }
+
+  if ("coverLetter" in payload) {
+    window.localStorage.setItem(COVER_LETTER_STORAGE_KEY, payload.coverLetter ?? "");
   }
 
   if (payload.settings) {
@@ -589,6 +601,10 @@ export default function HomePage() {
   const [jsonDraft, setJsonDraft] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [jobMetadata, setJobMetadata] = useState<JobMetadata>(emptyMetadata);
+  const [coverLetterText, setCoverLetterText] = useState("");
+  const [coverLetterJobDescription, setCoverLetterJobDescription] = useState("");
+  const [isGeneratingCoverLetter, setIsGeneratingCoverLetter] = useState(false);
+  const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
   const [recentApplications, setRecentApplications] = useState<RecentApplication[]>([]);
   const [showMasterModal, setShowMasterModal] = useState(false);
   const [masterModalMode, setMasterModalMode] = useState<"setup" | "update">("setup");
@@ -869,6 +885,7 @@ export default function HomePage() {
         });
 
         setRecentApplications(nextRecentApplications);
+        setCoverLetterText(repoStorage.coverLetter ?? "");
         setIsHydrated(true);
 
         if (didMigrate || (storedPhoto && !repoStorage.photo)) {
@@ -948,6 +965,18 @@ export default function HomePage() {
       setError(saveError instanceof Error ? saveError.message : "Recent applications could not be saved.");
     });
   }, [isHydrated, recentApplications]);
+
+  // Debounced auto-save of the cover letter (400 ms)
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void patchRepoStorage({ coverLetter: coverLetterText });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [isHydrated, coverLetterText]);
 
   const persistMasterCV = async (nextMasterCV: ResumeData) => {
     setIsSavingMasterCV(true);
@@ -1070,15 +1099,17 @@ export default function HomePage() {
       role: selectedApplication.role,
       location: selectedApplication.location
     });
+    setCoverLetterJobDescription(selectedApplication.jdSnapshot);
     setError(null);
   };
 
   const handleUnifiedApplicationPrepared = useCallback(
-    ({ resume: preparedResume, metadata }: { resume: ResumeData; metadata: JobMetadata }) => {
+    ({ resume: preparedResume, metadata, jobDescription }: { resume: ResumeData; metadata: JobMetadata; jobDescription: string }) => {
       const nextResume = withStoredPhoto(normalizeResumeInput(preparedResume), storedPhotoRef.current);
       setResume(nextResume);
       setJsonDraft(resumeToEditorJson(nextResume));
       setJobMetadata(metadata);
+      setCoverLetterJobDescription(jobDescription || "");
       setJsonError(null);
       bumpEditorSync();
     },
@@ -1094,6 +1125,53 @@ export default function HomePage() {
       document.title = originalTitle;
     }, 0);
   };
+
+  const handleGenerateCoverLetter = async () => {
+    if (isGeneratingCoverLetter) {
+      return;
+    }
+
+    setIsGeneratingCoverLetter(true);
+    setCoverLetterError(null);
+
+    try {
+      const response = await fetch("/api/generate-cover-letter", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          resume,
+          metadata: jobMetadata,
+          jobDescription: coverLetterJobDescription,
+          existingDraft: coverLetterText
+        })
+      });
+
+      const payload = (await response.json()) as CoverLetterResponse | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          (payload as { error?: string }).error ?? "Cover letter generation failed."
+        );
+      }
+
+      const result = payload as CoverLetterResponse;
+      setCoverLetterText(result.coverLetter);
+    } catch (generateError) {
+      setCoverLetterError(
+        generateError instanceof Error
+          ? generateError.message
+          : "Cover letter generation failed."
+      );
+    } finally {
+      setIsGeneratingCoverLetter(false);
+    }
+  };
+
+  const handleCoverLetterTextChange = useCallback((text: string) => {
+    setCoverLetterText(text);
+  }, []);
 
   const handleCopyPlainText = async () => {
     const text = generateATSText(resume);
@@ -1450,6 +1528,48 @@ export default function HomePage() {
             </div>
           </div>
           </div>
+        </section>
+
+        <section id="cover-letter" className="studio-section">
+          <div className="section-heading section-heading--studio no-print">
+            <div>
+              <div className="eyebrow eyebrow--blue">Cover letter <span>03</span></div>
+              <h2>Write the letter that moves the needle.</h2>
+              <p>Generate a tailored cover letter from the current CV and selected job, then tune it in the editor.</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {coverLetterJobDescription ? (
+                <span className="hidden rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 xl:inline">
+                  Using JD for {jobMetadata.role || "role"} at {jobMetadata.company || "company"}
+                </span>
+              ) : null}
+              <LoadingButton
+                type="button"
+                onClick={() => void handleGenerateCoverLetter()}
+                loading={isGeneratingCoverLetter}
+                loadingLabel="Writing…"
+                estimatedSeconds={40}
+                className="rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                ✨ Generate cover letter
+              </LoadingButton>
+            </div>
+          </div>
+
+          {coverLetterError ? (
+            <div className="no-print alert alert--error mb-4">
+              <span>Cover letter generation failed: {coverLetterError}</span>
+            </div>
+          ) : null}
+
+          <CoverLetterPanel
+            candidateName={resume.personal.name}
+            company={jobMetadata.company}
+            role={jobMetadata.role}
+            cvFontWeight={settings.cvFontWeight}
+            initialText={coverLetterText}
+            onTextChange={handleCoverLetterTextChange}
+          />
         </section>
       </main>
     </div>
