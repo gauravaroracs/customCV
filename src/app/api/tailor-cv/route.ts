@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { TailorRequest, TailorResponse } from "@/types/resume";
+import { ResumeData, TailorRequest, TailorResponse } from "@/types/resume";
 
 const OPENAI_MODEL = "gpt-5-mini";
 
@@ -12,7 +12,10 @@ You will receive:
 
 Follow the resume-tailoring logic below, but return ONLY raw JSON matching this API schema:
 {
-  "tailoredCV": { "same schema as the master resume JSON, but omit any meta field" },
+  "tailoredCV": {
+    "same schema as the master resume JSON, but omit any meta field",
+    "skills": [{ "groupName": "Backend", "items": ["Java", "Spring Boot"] }]
+  },
   "changes": ["short, useful notes about what changed or what to verify"],
   "warnings": ["hard or soft gaps, or inferred bullets that need candidate verification"]
 }
@@ -105,6 +108,17 @@ HONESTY RULES
 - Only add plausible JD-named tech in skills, not fake experience
 - If a requirement is genuinely missing, call it out in warnings
 Return ONLY raw JSON matching the required API schema. No markdown. No code fences. No commentary.`;
+
+type TailoredCvWire = Omit<ResumeData, "skills"> & {
+  skills: Array<{
+    groupName: string;
+    items: string[];
+  }>;
+};
+
+type TailorWireResponse = Omit<TailorResponse, "tailoredCV"> & {
+  tailoredCV: TailoredCvWire;
+};
 
 // Token budget estimate: system ~600, CV JSON ~800, JD ~400 = ~1800 total
 // gpt-5-mini handles this fine. If latency spikes, reduce masterCV
@@ -201,13 +215,17 @@ Build the tailored response now. Follow the hard constraints exactly and return 
                   },
                   profile: { type: "string" },
                   skills: {
-                    type: "object",
-                    additionalProperties: true,
-                    propertyNames: { type: "string" },
-                    patternProperties: {
-                      ".*": {
-                        type: "array",
-                        items: { type: "string" }
+                    type: "array",
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: ["groupName", "items"],
+                      properties: {
+                        groupName: { type: "string" },
+                        items: {
+                          type: "array",
+                          items: { type: "string" }
+                        }
                       }
                     }
                   },
@@ -298,7 +316,18 @@ Build the tailored response now. Follow the hard constraints exactly and return 
     });
 
     const rawOutput = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(rawOutput) as TailorResponse;
+    const wireParsed = JSON.parse(rawOutput) as TailorWireResponse;
+    const parsed: TailorResponse = {
+      ...wireParsed,
+      tailoredCV: {
+        ...wireParsed.tailoredCV,
+        skills: Object.fromEntries(
+          (wireParsed.tailoredCV.skills ?? [])
+            .filter((group) => group.groupName.trim())
+            .map((group) => [group.groupName.trim(), group.items])
+        )
+      }
+    };
 
     const elapsed = Date.now() - t0;
     console.log(`[tailor-cv] ✓ RESPONSE  ${elapsed}ms`);
