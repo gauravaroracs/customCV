@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { upsertJob, type JobInput } from "@/lib/jobStore";
 
 export const runtime = "nodejs";
@@ -37,6 +38,11 @@ function htmlToText(value: string) {
 
 function firstMatch(html: string, pattern: RegExp) {
   return decodeHtml(html.match(pattern)?.[1]?.trim() ?? "");
+}
+
+function labeledValue(text: string, labels: string[]) {
+  const pattern = new RegExp(`^\\s*(?:${labels.join("|")})\\s*[:\\-]\\s*(.+)$`, "im");
+  return text.match(pattern)?.[1]?.trim() ?? "";
 }
 
 function parseJsonLd(html: string) {
@@ -99,50 +105,74 @@ function makeJobId(url: URL) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as { url?: string };
-    const url = validateJobUrl(body.url);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        signal: controller.signal,
-        headers: { "User-Agent": "CVPilot job importer/1.0" },
-        cache: "no-store"
-      });
-    } finally {
-      clearTimeout(timeout);
+    const body = await request.json() as { url?: string; text?: string };
+    const pastedText = typeof body.text === "string" ? body.text.trim() : "";
+    let finalUrl: URL | null = null;
+    let html = pastedText;
+
+    if (pastedText) {
+      if (body.url?.trim()) finalUrl = validateJobUrl(body.url);
+    } else {
+      finalUrl = validateJobUrl(body.url);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      let response: Response;
+      try {
+        response = await fetch(finalUrl, {
+          signal: controller.signal,
+          headers: { "User-Agent": "CVPilot job importer/1.0" },
+          cache: "no-store"
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!response.ok) throw new Error(`The job page returned HTTP ${response.status}.`);
+      finalUrl = validateJobUrl(response.url || finalUrl.toString());
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
+        throw new Error("That URL did not return an HTML job page.");
+      }
+      html = await response.text();
     }
 
-    if (!response.ok) throw new Error(`The job page returned HTTP ${response.status}.`);
-    const finalUrl = validateJobUrl(response.url || url.toString());
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-      throw new Error("That URL did not return an HTML job page.");
-    }
-
-    const html = await response.text();
-    if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) throw new Error("The job page is too large to import.");
+    if (Buffer.byteLength(html, "utf8") > MAX_HTML_BYTES) throw new Error("The pasted job page is too large to import.");
 
     const jsonLd = parseJsonLd(html);
     const pageText = htmlToText(html);
     const description = htmlToText(stringValue(jsonLd?.description)) || pageText;
-    if (description.length < 80) throw new Error("Could not extract enough job-description text from that page.");
+    if (description.length < 80) throw new Error("Could not extract enough job-description text. Paste the complete job page.");
 
-    const company = stringValue(jsonLd?.hiringOrganization) || firstMatch(html, /<meta[^>]+(?:property|name)=["'](?:og:site_name|application-name)["'][^>]+content=["']([^"']+)/i);
-    const role = stringValue(jsonLd?.title) || firstMatch(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i) || firstMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/i);
-    const location = jobLocationValue(jsonLd?.jobLocation) || firstMatch(html, /<meta[^>]+name=["'](?:location|job-location)["'][^>]+content=["']([^"']+)/i);
-    const postedDate = stringValue(jsonLd?.datePosted) || firstMatch(html, /<meta[^>]+(?:property|name)=["'](?:article:published_time|datePosted)["'][^>]+content=["']([^"']+)/i);
+    const company = stringValue(jsonLd?.hiringOrganization)
+      || firstMatch(html, /<meta[^>]+(?:property|name)=["'](?:og:site_name|application-name)["'][^>]+content=["']([^"']+)/i)
+      || labeledValue(pageText, ["company", "employer", "organization"]);
+    const role = stringValue(jsonLd?.title)
+      || firstMatch(html, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)/i)
+      || firstMatch(html, /<title[^>]*>([\s\S]*?)<\/title>/i)
+      || labeledValue(pageText, ["job title", "role", "position"])
+      || pageText.split("\n").map((line) => line.trim()).find(Boolean)
+      || "Imported job";
+    const location = jobLocationValue(jsonLd?.jobLocation)
+      || firstMatch(html, /<meta[^>]+name=["'](?:location|job-location)["'][^>]+content=["']([^"']+)/i)
+      || labeledValue(pageText, ["location", "based in", "place"]);
+    const postedDate = stringValue(jsonLd?.datePosted)
+      || firstMatch(html, /<meta[^>]+(?:property|name)=["'](?:article:published_time|datePosted)["'][^>]+content=["']([^"']+)/i)
+      || labeledValue(pageText, ["date posted", "posted", "published"]);
+    const jobId = finalUrl
+      ? makeJobId(finalUrl)
+      : `manual-text-${createHash("sha256").update(description).digest("hex").slice(0, 24)}`;
     const job: JobInput = {
-      job_id: makeJobId(finalUrl),
-      source: "Manual job-page import",
+      job_id: jobId,
+      source: pastedText ? "Manual pasted job-page import" : "Manual job-page import",
       company,
       role,
       location,
-      job_url: finalUrl.toString(),
+      job_url: finalUrl?.toString() ?? "",
       posted_date: postedDate,
       job_description: description.slice(0, MAX_DESCRIPTION_LENGTH),
-      notes: "Imported from a complete job-page URL. Score is intentionally not assigned."
+      notes: pastedText
+        ? "Imported from pasted complete job-page text. Score is intentionally not assigned."
+        : "Imported from a complete job-page URL. Score is intentionally not assigned."
     };
 
     return NextResponse.json({ job: await upsertJob(job), extracted: { company, role, location, posted_date: postedDate } }, { status: 201 });

@@ -67,6 +67,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [sortMode, setSortMode] = useState<SortMode>("fit");
   const [discoverySource, setDiscoverySource] = useState<DiscoverySource>(null);
   const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  const [importText, setImportText] = useState("");
   const [importUrl, setImportUrl] = useState("");
   const [importingJob, setImportingJob] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
@@ -276,10 +277,11 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       const response = await fetch("/api/jobs/import-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: importUrl })
+        body: JSON.stringify({ text: importText, url: importUrl })
       });
       const payload = await response.json() as { job?: JobRecord; error?: string };
       if (!response.ok || !payload.job) throw new Error(payload.error ?? "Could not import that job page.");
+      setImportText("");
       setImportUrl("");
       await loadJobs();
       setSelectedJob(payload.job);
@@ -321,21 +323,34 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
 
       {error ? <div className="alert alert--warning"><strong>Inbox unavailable.</strong> {error}<span>Add DATABASE_URL to the running environment to enable live jobs.</span></div> : null}
       {discoveryMessage ? <div className={`alert ${discoveryMessage.toLowerCase().includes("failed") || discoveryMessage.toLowerCase().includes("not configured") ? "alert--error" : "alert--success"}`}>{discoveryMessage}</div> : null}
-      <form onSubmit={(event) => { event.preventDefault(); void importJobPage(); }} className="mt-5 flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <label className="min-w-[240px] flex-1">
-          <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Import a complete job page</span>
-          <input
-            type="url"
-            value={importUrl}
-            onChange={(event) => setImportUrl(event.target.value)}
+      <form onSubmit={(event) => { event.preventDefault(); void importJobPage(); }} className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Paste the complete job page</span>
+          <textarea
+            value={importText}
+            onChange={(event) => setImportText(event.target.value)}
             disabled={importingJob || Boolean(discoverySource)}
-            placeholder="https://company.com/careers/software-engineer"
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
+            placeholder="Paste everything from the job page here…"
+            rows={6}
+            className="w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
           />
         </label>
-        <button type="submit" disabled={!importUrl.trim() || importingJob || Boolean(discoverySource)} className="button button--outline">
-          {importingJob ? "Importing and preparing…" : "Import, tailor and write"}
-        </button>
+        <div className="mt-3 flex flex-wrap items-end gap-3">
+          <label className="min-w-[240px] flex-1">
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Source URL (optional)</span>
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(event) => setImportUrl(event.target.value)}
+              disabled={importingJob || Boolean(discoverySource)}
+              placeholder="https://company.com/careers/software-engineer"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
+            />
+          </label>
+          <button type="submit" disabled={!importText.trim() || importingJob || Boolean(discoverySource)} className="button button--outline">
+            {importingJob ? "Importing and preparing…" : "Import, tailor and write"}
+          </button>
+        </div>
       </form>
       {importMessage ? <div className={`alert ${["could not", "error", "failed"].some((term) => importMessage.toLowerCase().includes(term)) ? "alert--error" : "alert--success"}`}>{importMessage}</div> : null}
 
