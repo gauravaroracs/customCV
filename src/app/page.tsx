@@ -1240,8 +1240,8 @@ export default function HomePage() {
     window.setTimeout(restore, 0);
   }, [resume, jobMetadata, settings.atsPageMargin]);
 
-  // Build the ATS HTML whenever resume changes
-  const atsHtml = generateATSHtml(withoutDownloadOnlyFields(resume), {
+  // Build the ATS HTML whenever resume changes (keep photoUrl so the PDF includes the photo)
+  const atsHtml = generateATSHtml(resume, {
     fontSize: settings.atsFontSize,
     lineHeight: settings.atsLineHeight,
     sectionGap: settings.atsSectionGap
