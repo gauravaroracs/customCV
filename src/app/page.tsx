@@ -1164,7 +1164,7 @@ export default function HomePage() {
   }, [resume, jobMetadata]);
 
   // Build the ATS HTML whenever resume changes
-  const atsHtml = generateATSHtml(resume, {
+  const atsHtml = generateATSHtml(withoutDownloadOnlyFields(resume), {
     lineHeight: settings.atsLineHeight,
     sectionGap: settings.atsSectionGap
   });

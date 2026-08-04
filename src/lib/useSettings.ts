@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cvSettingsDefaults, type CvPilotSettings } from "./cvSettings";
+import {
+  cvSettingsDefaults,
+  normalizeCvPilotSettings,
+  type CvPilotSettings
+} from "./cvSettings";
 
 type UseSettingsOptions = {
   /** Persist only after hydration is complete. */
@@ -21,19 +25,12 @@ export function useSettings({ enabled, onPersist }: UseSettingsOptions) {
 
   const applyStoredSettings = useCallback((stored: Partial<CvPilotSettings>) => {
     setSettings((previous) => {
-      const next = { ...previous };
-      for (const key of Object.keys(cvSettingsDefaults) as (keyof CvPilotSettings)[]) {
-        const value = stored[key];
-        if (typeof value === "string" && value.trim() !== "") {
-          next[key] = value;
-        }
-      }
-      return next;
+      return normalizeCvPilotSettings(stored, previous);
     });
   }, []);
 
   const updateSettings = useCallback((patch: Partial<CvPilotSettings>) => {
-    setSettings((previous) => ({ ...previous, ...patch }));
+    setSettings((previous) => normalizeCvPilotSettings(patch, previous));
   }, []);
 
   // Single debounced autosave for every setting.
