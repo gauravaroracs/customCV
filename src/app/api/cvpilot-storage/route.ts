@@ -222,13 +222,17 @@ function stringifyForGuard(value: unknown) {
   }
 }
 
+/**
+ * Detect the stale CV produced by the old n8n backend pipeline. It is identified
+ * by exact phrases from its profile/language fields, NOT by structural heuristics:
+ * "Programming" + "Soft Skills" are legitimate, common skill-group names, and the
+ * previous check silently dropped every working-CV save for any CV using them
+ * (e.g. the bundled sample CV). If a new stale CV ever appears, add its actual
+ * text fingerprints instead of broadening this heuristic.
+ */
 function isKnownStaleBackendCv(value: unknown) {
   const text = stringifyForGuard(value);
-  return (
-    text.includes("currently upskilling into ml") ||
-    text.includes("b1 learning") ||
-    (text.includes("programming") && text.includes("soft skills") && !text.includes("fraunhofer sit"))
-  );
+  return text.includes("currently upskilling into ml") || text.includes("b1 learning");
 }
 
 export async function GET() {
