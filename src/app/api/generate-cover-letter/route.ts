@@ -31,7 +31,6 @@ CANDIDATE DETAILS — FIXED, DO NOT MODIFY
 Full Name: Gaurav Arora
 Email: gaurav.arora@stud.tu-darmstadt.de
 Phone: +49 15212960879
-Website: https://gaurav-arora-cs.vercel.app/
 City: Darmstadt, Germany
 
 FORMAT RULES FOR coverLetter
@@ -40,7 +39,7 @@ FORMAT RULES FOR coverLetter
 - Keep exactly one blank line between paragraphs, and no blank lines within a paragraph
 - Include the header in this exact order:
 Gaurav Arora
-gaurav.arora@stud.tu-darmstadt.de | +49 15212960879 | https://gaurav-arora-cs.vercel.app/
+gaurav.arora@stud.tu-darmstadt.de | +49 15212960879
 Darmstadt, Germany
 [Date written as Month D, YYYY]
 [Recruiter Full Name or Hiring Team]
@@ -74,7 +73,7 @@ Paragraph 4, call to action:
 Footer:
 Best regards,
 Gaurav Arora
-gaurav.arora@stud.tu-darmstadt.de | +49 15212960879 | https://gaurav-arora-cs.vercel.app/
+gaurav.arora@stud.tu-darmstadt.de | +49 15212960879
 
 HARD RULES
 - Name the company's specific product in paragraph 2 if identifiable from the JD. If not identifiable, focus on the company's core platform or service area and add a warning.
