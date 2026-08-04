@@ -19,8 +19,8 @@ type CvPilotStorage = {
   coverLetter?: string;
 };
 
-const storageDir = process.env.VERCEL
-  ? path.join("/tmp", "cvpilot")
+const storageDir = process.env.CVPILOT_STORAGE_DIR
+  ? path.resolve(process.env.CVPILOT_STORAGE_DIR)
   : path.join(process.cwd(), "storage", "cvpilot");
 
 export const dynamic = "force-dynamic";

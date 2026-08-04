@@ -71,6 +71,13 @@ npm run dev
 
 The development server runs on `http://127.0.0.1:3030`.
 
+Production deployment
+
+CVPilot is deployed on Railway. Set `DATABASE_URL`, `OPENAI_API_KEY`, and the
+n8n variables in Railway's environment settings. For durable file-backed CV
+storage, mount a Railway volume and set `CVPILOT_STORAGE_DIR` to its absolute
+mount path; otherwise the default is `storage/cvpilot` inside the app directory.
+
 ### Unified job application MVP
 
 The application inbox is backed by Postgres. Set `DATABASE_URL` and
