@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingButton } from "@/components/LoadingButton";
 import { buildTailorCvPrompt } from "@/lib/tailorCvPrompt";
 import type { ApplicationRecord, JobRecord } from "@/lib/jobStore";
-import type { JobMetadata, MatchBreakdown, ResumeData, TailorPromptDebug, TailorResponse } from "@/types/resume";
+import type { CoverLetterResponse, JobMetadata, MatchBreakdown, ResumeData, TailorPromptDebug, TailorResponse } from "@/types/resume";
 
 type Props = {
   masterCV: ResumeData | null;
@@ -25,9 +25,15 @@ type GenerationLog = {
   rawResponse: string;
   changes: string[];
   warnings: string[];
+  scoreWarnings: string[];
   matchScore: number | null;
   matchBreakdown: MatchBreakdown | null;
   tailoredCV: ResumeData | null;
+  pass: number;
+};
+
+type CoverLetterLog = CoverLetterResponse & {
+  rawResponse: string;
 };
 
 const reviewLabels: Record<JobRecord["review_status"], string> = {
@@ -74,9 +80,11 @@ const generationLogFromApplication = (application: ApplicationRecord): Generatio
   rawResponse: application.ai_response ?? "",
   changes: stringList(application.gap_analysis),
   warnings: stringList(application.warnings),
+  scoreWarnings: [],
   matchScore: numberOrNull(application.match_score),
   matchBreakdown: application.match_breakdown as MatchBreakdown | null,
-  tailoredCV: application.tailored_cv as ResumeData | null
+  tailoredCV: application.tailored_cv as ResumeData | null,
+  pass: 1
 });
 
 function jobDateValue(job: JobRecord) {
@@ -94,6 +102,7 @@ function displayJobDate(job: JobRecord) {
 }
 
 export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
+  const importTextAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null);
   const [preparation, setPreparation] = useState<PreparationState>({ application: null, step: "", error: null });
@@ -110,6 +119,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const [jobAction, setJobAction] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [generationLog, setGenerationLog] = useState<GenerationLog | null>(null);
+  const [coverLetterLog, setCoverLetterLog] = useState<CoverLetterLog | null>(null);
 
   const loadJobs = useCallback(async () => {
     setRefreshing(true);
@@ -171,6 +181,12 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
             error: payload.application.preparation_error
           });
           setGenerationLog(generationLogFromApplication(payload.application));
+          setCoverLetterLog(payload.application.cover_letter ? {
+            coverLetter: payload.application.cover_letter,
+            highlights: [],
+            warnings: [],
+            rawResponse: payload.application.cover_letter
+          } : null);
           if (payload.application.preparation_status === "ready" && payload.application.tailored_cv) {
             onPrepared({
               resume: payload.application.tailored_cv as ResumeData,
@@ -181,9 +197,11 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
         } else {
           setPreparation({ application: null, step: "", error: null });
           setGenerationLog(null);
+          setCoverLetterLog(null);
         }
       } catch {
         setGenerationLog(null);
+        setCoverLetterLog(null);
         // The job can still be reviewed if the application lookup is unavailable.
       }
     };
@@ -213,8 +231,8 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
   const selectedJobIsInactive = selectedJob?.lifecycle_status === "inactive";
   const canPrepareSelectedJob = Boolean(selectedJob && !selectedJobIsArchived && !selectedJobIsInactive);
 
-  const prepareJob = async (job: JobRecord): Promise<boolean> => {
-    if (!masterCV) {
+  const prepareJob = async (job: JobRecord, baseCV: ResumeData | null = masterCV, pass = 1): Promise<boolean> => {
+    if (!baseCV) {
       setPreparation({ application: null, step: "", error: "Set a Master CV before preparing an application." });
       return false;
     }
@@ -246,22 +264,39 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
       const jobDescription = job.job_description ?? "";
       if (!jobDescription.trim()) throw new Error("This job has no extracted description yet.");
 
-      const prompt = buildTailorCvPrompt(masterCV, jobDescription);
+      await patchStep(pass > 1 ? "Scoring improved CV…" : "Scoring master CV…");
+      const scoreResponse = await fetch("/api/score-cv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resume: baseCV, jobDescription })
+      });
+      const scorePayload = await scoreResponse.json() as {
+        matchScore?: number;
+        matchBreakdown?: MatchBreakdown;
+        warnings?: string[];
+        error?: string;
+      };
+      if (!scoreResponse.ok) throw new Error(scorePayload.error ?? "CV scoring failed.");
+
+      const prompt = buildTailorCvPrompt(baseCV, jobDescription);
       setGenerationLog({
         prompt,
         rawResponse: "",
         changes: [],
         warnings: [],
-        matchScore: null,
-        matchBreakdown: null,
-        tailoredCV: null
+        scoreWarnings: scorePayload.warnings ?? [],
+        matchScore: numberOrNull(scorePayload.matchScore),
+        matchBreakdown: scorePayload.matchBreakdown ?? null,
+        tailoredCV: null,
+        pass
       });
+      setCoverLetterLog(null);
 
-      await patchStep("Generating CV JSON…");
+      await patchStep(pass > 1 ? "Improving CV JSON again…" : "Generating improved CV JSON…");
       const tailorResponse = await fetch("/api/tailor-cv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ masterCV, jobDescription })
+        body: JSON.stringify({ masterCV: baseCV, jobDescription })
       });
       const tailored = await tailorResponse.json() as TailorResponse & { error?: string };
       if (!tailorResponse.ok || !tailored.tailoredCV) throw new Error(tailored.error ?? "CV tailoring failed.");
@@ -277,11 +312,35 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
         }, null, 2),
         changes: tailored.changes ?? [],
         warnings: tailored.warnings ?? [],
-        matchScore: numberOrNull(tailored.matchScore),
-        matchBreakdown: tailored.matchBreakdown ?? null,
-        tailoredCV: tailored.tailoredCV
+        scoreWarnings: scorePayload.warnings ?? [],
+        matchScore: numberOrNull(tailored.matchScore ?? scorePayload.matchScore),
+        matchBreakdown: tailored.matchBreakdown ?? scorePayload.matchBreakdown ?? null,
+        tailoredCV: tailored.tailoredCV,
+        pass
       };
       setGenerationLog(nextGenerationLog);
+
+      await patchStep("Generating cover letter…");
+      const coverResponse = await fetch("/api/generate-cover-letter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resume: tailored.tailoredCV,
+          jobDescription,
+          metadata: { company: job.company ?? "", role: job.role ?? "", location: job.location ?? "" }
+        })
+      });
+      const coverPayload = await coverResponse.json() as CoverLetterResponse & { error?: string };
+      if (!coverResponse.ok || typeof coverPayload.coverLetter !== "string") {
+        throw new Error(coverPayload.error ?? "Cover letter generation failed.");
+      }
+      const nextCoverLetterLog: CoverLetterLog = {
+        coverLetter: coverPayload.coverLetter,
+        highlights: coverPayload.highlights ?? [],
+        warnings: coverPayload.warnings ?? [],
+        rawResponse: JSON.stringify(coverPayload, null, 2)
+      };
+      setCoverLetterLog(nextCoverLetterLog);
 
       const finishedResponse = await fetch(`/api/applications/${applicationId}`, {
         method: "PATCH",
@@ -291,15 +350,22 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
           preparation_status: "ready",
           current_step: "Complete",
           tailored_cv: tailored.tailoredCV,
-          cover_letter: null,
+          cover_letter: nextCoverLetterLog.coverLetter,
           match_score: nextGenerationLog.matchScore,
           match_breakdown: tailored.matchBreakdown ?? null,
-          warnings: tailored.warnings ?? [],
-          gap_analysis: tailored.changes ?? [],
+          warnings: [...(scorePayload.warnings ?? []), ...(tailored.warnings ?? []), ...(coverPayload.warnings ?? [])],
+          gap_analysis: [
+            ...(tailored.changes ?? []),
+            ...(coverPayload.highlights ?? []).map((highlight) => `Cover letter: ${highlight}`)
+          ],
           ai_prompt: nextGenerationLog.prompt,
-          ai_response: nextGenerationLog.rawResponse,
+          ai_response: JSON.stringify({
+            score: scorePayload,
+            tailor: JSON.parse(nextGenerationLog.rawResponse || "{}"),
+            coverLetter: coverPayload
+          }, null, 2),
           ai_model: tailored.model ?? nextGenerationLog.prompt?.model ?? "",
-          event_note: "CV ready for review"
+          event_note: "Application package ready for review"
         })
       });
       const finished = await finishedResponse.json() as { application?: ApplicationRecord; error?: string };
@@ -336,18 +402,36 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
     await prepareJob(selectedJob);
   };
 
+  const runSecondPass = async () => {
+    if (!selectedJob || !generationLog?.tailoredCV) {
+      setPreparation((current) => ({ ...current, error: "Generate an improved CV before running a second pass." }));
+      return;
+    }
+    await prepareJob(selectedJob, generationLog.tailoredCV, (generationLog.pass ?? 1) + 1);
+  };
+
+  const copyToClipboard = async (value: string) => {
+    await navigator.clipboard.writeText(value);
+  };
+
   const importJobPage = async () => {
+    const textToImport = importText.trim() || importTextAreaRef.current?.value.trim() || "";
+    if (!textToImport) {
+      setImportMessage("Paste the complete job-page text before importing.");
+      return;
+    }
     setImportingJob(true);
     setImportMessage(null);
     try {
       const response = await fetch("/api/jobs/import-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: importText, url: importUrl })
+        body: JSON.stringify({ text: textToImport, url: importUrl })
       });
       const payload = await response.json() as { job?: JobRecord; error?: string };
       if (!response.ok || !payload.job) throw new Error(payload.error ?? "Could not import that job page.");
       setImportText("");
+      if (importTextAreaRef.current) importTextAreaRef.current.value = "";
       setImportUrl("");
       await loadJobs();
       setSelectedJob(payload.job);
@@ -387,10 +471,16 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
 
       {error ? <div className="alert alert--warning"><strong>Inbox unavailable.</strong> {error}<span>Add DATABASE_URL to the running environment to enable live jobs.</span></div> : null}
       {discoveryMessage ? <div className={`alert ${discoveryMessage.toLowerCase().includes("failed") || discoveryMessage.toLowerCase().includes("not configured") ? "alert--error" : "alert--success"}`}>{discoveryMessage}</div> : null}
+      <div className="workflow-strip" aria-label="Application workflow">
+        {["Paste job text", "Import job", "Select job", "Prepare full application", "GPT points", "Improved CV JSON", "Cover letter review"].map((step, index) => (
+          <span key={step}><strong>{String(index + 1).padStart(2, "0")}</strong>{step}</span>
+        ))}
+      </div>
       <form onSubmit={(event) => { event.preventDefault(); void importJobPage(); }} className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <label className="block">
           <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">Paste the complete job page</span>
           <textarea
+            ref={importTextAreaRef}
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
             disabled={importingJob || Boolean(discoverySource)}
@@ -411,7 +501,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-violet-400 disabled:opacity-60"
             />
           </label>
-          <LoadingButton type="submit" loading={importingJob} loadingLabel="Importing job…" estimatedSeconds={25} disabled={!importText.trim() || Boolean(discoverySource)} className="button button--outline">
+          <LoadingButton type="submit" loading={importingJob} loadingLabel="Importing job…" estimatedSeconds={25} disabled={Boolean(discoverySource)} className="button button--outline">
             Import job
           </LoadingButton>
         </div>
@@ -478,21 +568,22 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
               )}
               {selectedJob.job_url ? <a href={selectedJob.job_url} target="_blank" rel="noreferrer" className="button button--ghost">Open listing ↗</a> : null}
             </div>
-            <LoadingButton type="button" onClick={() => void runPreparation()} loading={isPreparing} loadingLabel={preparation.step || "Preparing…"} estimatedSeconds={75} disabled={!masterCV || !canPrepareSelectedJob} className="prepare-button"><span>Prepare application</span><span>→</span></LoadingButton>
+            <LoadingButton type="button" onClick={() => void runPreparation()} loading={isPreparing} loadingLabel={preparation.step || "Preparing…"} estimatedSeconds={120} disabled={!masterCV || !canPrepareSelectedJob} className="prepare-button"><span>Prepare full application</span><span>→</span></LoadingButton>
             {!masterCV ? <p className="detail-note">Set a Master CV above before preparing.</p> : null}
-            <p className="detail-note">CV-only mode is on. Cover-letter generation is disabled for now.</p>
+            <p className="detail-note">Runs scoring, CV JSON improvement, visible AI review points, and cover-letter generation.</p>
             {selectedJobIsArchived ? <p className="detail-note">Archived roles stay in history but are hidden from the default inbox and cannot be prepared.</p> : null}
             {selectedJobIsInactive ? <p className="detail-note">This role is marked inactive in the backend. Restore it to active before preparing.</p> : null}
             {selectedJob.inactive_reason ? <p className="detail-note">Inactive reason: {selectedJob.inactive_reason}</p> : null}
-            {preparation.step === "Complete" ? <div className="alert alert--success">✓ CV ready. The generated JSON is loaded into CV Studio below.</div> : null}
+            {preparation.step && preparation.step !== "Complete" && preparation.step !== "Failed" ? <div className="alert alert--success"><span className="loading-orb" /> {preparation.step}</div> : null}
+            {preparation.step === "Complete" ? <div className="alert alert--success">✓ Application package ready. The improved CV JSON is loaded into CV Studio and the cover letter is visible below.</div> : null}
             {preparation.error ? <div className="alert alert--error">{preparation.error}</div> : null}
             {generationLog ? (
               <div className="mt-4 space-y-4 rounded-3xl border border-violet-200 bg-violet-50/50 p-4 text-sm text-slate-700">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Transparent CV generation</div>
-                    <h4 className="mt-1 text-base font-black text-slate-950">Prompt, response, score, and next edits</h4>
-                    <p className="mt-1 text-xs text-slate-600">The generated JSON is automatically filled into the CV editor below for your final tweaks.</p>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-700">Transparent application generation</div>
+                    <h4 className="mt-1 text-base font-black text-slate-950">Score, GPT points, improved CV JSON, and cover letter</h4>
+                    <p className="mt-1 text-xs text-slate-600">Pass {generationLog.pass}: GPT points are shown before/alongside the generated JSON so you can judge what improved and what still needs verification.</p>
                   </div>
                   <div className={`rounded-2xl px-4 py-2 text-center ${scoreClass(generationLog.matchScore)}`}>
                     <strong className="block text-lg">{generationLog.matchScore ?? "—"}</strong>
@@ -519,18 +610,9 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
                   </details>
                 ) : null}
 
-                <details open className="rounded-2xl border border-violet-200 bg-white p-3">
-                  <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-violet-800">AI response JSON</summary>
-                  {generationLog.rawResponse ? (
-                    <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">{generationLog.rawResponse}</pre>
-                  ) : (
-                    <div className="mt-3 flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-violet-800"><span className="loading-orb" /> Waiting for the AI response JSON…</div>
-                  )}
-                </details>
-
-                {(breakdownEntries.length > 0 || generationLog.changes.length > 0 || generationLog.warnings.length > 0) ? (
+                {(breakdownEntries.length > 0 || generationLog.scoreWarnings.length > 0 || generationLog.changes.length > 0 || generationLog.warnings.length > 0) ? (
                   <div className="rounded-2xl border border-violet-200 bg-white p-3">
-                    <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-800">AI modifications and score notes</div>
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-violet-800">GPT points to improve score</div>
                     {breakdownEntries.length > 0 ? (
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                         {breakdownEntries.map(([label, value]) => (
@@ -541,9 +623,17 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
                         ))}
                       </div>
                     ) : null}
+                    {generationLog.scoreWarnings.length > 0 ? (
+                      <div className="mt-3">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-rose-700">Initial score gaps</div>
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-rose-900">
+                          {generationLog.scoreWarnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+                        </ul>
+                      </div>
+                    ) : null}
                     {generationLog.changes.length > 0 ? (
                       <div className="mt-3">
-                        <div className="text-[11px] font-black uppercase tracking-wide text-emerald-700">Modifications to review</div>
+                        <div className="text-[11px] font-black uppercase tracking-wide text-emerald-700">CV JSON changes GPT made</div>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-700">
                           {generationLog.changes.map((change, index) => <li key={`${change}-${index}`}>{change}</li>)}
                         </ul>
@@ -551,7 +641,7 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
                     ) : null}
                     {generationLog.warnings.length > 0 ? (
                       <div className="mt-3">
-                        <div className="text-[11px] font-black uppercase tracking-wide text-amber-700">Gaps and verification notes</div>
+                        <div className="text-[11px] font-black uppercase tracking-wide text-amber-700">Needs user verification</div>
                         <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-amber-900">
                           {generationLog.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
                         </ul>
@@ -560,9 +650,53 @@ export function UnifiedJobsPanel({ masterCV, onPrepared }: Props) {
                   </div>
                 ) : null}
 
+                <details className="rounded-2xl border border-violet-200 bg-white p-3">
+                  <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-violet-800">Raw AI response JSON</summary>
+                  {generationLog.rawResponse ? (
+                    <pre className="mt-3 max-h-96 overflow-auto whitespace-pre-wrap rounded-xl bg-slate-950 p-3 text-[11px] leading-relaxed text-slate-100">{generationLog.rawResponse}</pre>
+                  ) : (
+                    <div className="mt-3 flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-violet-800"><span className="loading-orb" /> Waiting for the AI response JSON…</div>
+                  )}
+                </details>
+
                 {generationLog.tailoredCV ? (
-                  <a href="#cv-studio" className="button button--outline inline-flex">Make final CV tweaks ↓</a>
+                  <div className="flex flex-wrap gap-2">
+                    <a href="#cv-studio" className="button button--outline inline-flex">Review improved CV ↓</a>
+                    <button type="button" className="button button--ghost" onClick={() => void copyToClipboard(JSON.stringify(generationLog.tailoredCV, null, 2))}>Copy CV JSON</button>
+                    <LoadingButton type="button" onClick={() => void runSecondPass()} loading={isPreparing} loadingLabel={preparation.step || "Improving…"} estimatedSeconds={120} disabled={isPreparing || !canPrepareSelectedJob} className="button button--outline">
+                      Improve CV again with these points
+                    </LoadingButton>
+                  </div>
                 ) : null}
+              </div>
+            ) : null}
+            {coverLetterLog ? (
+              <div className="mt-4 space-y-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 text-sm text-slate-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">Cover letter review</div>
+                    <h4 className="mt-1 text-base font-black text-slate-950">GPT rationale and final letter</h4>
+                    <p className="mt-1 text-xs text-slate-600">Use the highlights to judge why the letter should fit this role. Warnings mark missing recruiter/product details or evidence caps.</p>
+                  </div>
+                  <button type="button" className="button button--outline" onClick={() => void copyToClipboard(coverLetterLog.coverLetter)}>Copy letter</button>
+                </div>
+                {coverLetterLog.highlights.length > 0 ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-white p-3">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-emerald-800">What GPT optimized</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-slate-700">
+                      {coverLetterLog.highlights.map((highlight, index) => <li key={`${highlight}-${index}`}>{highlight}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                {coverLetterLog.warnings.length > 0 ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="text-xs font-black uppercase tracking-[0.14em] text-amber-800">Cover-letter cautions</div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-relaxed text-amber-900">
+                      {coverLetterLog.warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+                <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-2xl border border-emerald-200 bg-white p-4 text-sm leading-7 text-slate-900">{coverLetterLog.coverLetter}</pre>
               </div>
             ) : null}
           </> : <div className="detail-empty"><div className="detail-empty__icon">✦</div><strong>Choose a role to inspect</strong><span>Your shortlist and fit notes will appear here.</span></div>}

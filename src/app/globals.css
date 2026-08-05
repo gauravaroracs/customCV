@@ -740,6 +740,36 @@ input:focus-visible {
 .detail-score span { margin-top: 4px; color: #657b34; font-size: 9px; font-weight: 900; text-transform: uppercase; }
 .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
 .tag-cloud span { padding: 5px 8px; border: 1px solid #39455e; border-radius: 7px; color: #d2d8e5; font-size: 10px; }
+
+.workflow-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--line);
+}
+
+.workflow-strip span {
+  display: grid;
+  min-height: 48px;
+  align-content: center;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.workflow-strip strong {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
 .detail-block { margin-top: 24px; padding: 15px; border-left: 2px solid; border-radius: 0 13px 13px 0; background: rgba(255, 255, 255, 0.055); }
 .detail-block--good { border-color: var(--lime); }
 .detail-block--risk { border-color: var(--coral); }
@@ -764,6 +794,8 @@ input:focus-visible {
 .legend-dot--green { background: #57ae66; }
 .legend-dot--violet { background: var(--violet); }
 .studio-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 20px; align-items: start; }
+.studio-preview-column { max-width: 100%; overflow-x: auto; }
+.studio-preview-column .print-shell { width: max-content; min-width: 100%; }
 .studio-panel > div,
 .studio-preview-column > div:not(.preview-tip) { border-color: var(--line) !important; border-radius: 18px !important; box-shadow: 0 18px 50px rgba(23, 32, 47, 0.06) !important; }
 .preview-tip { margin-bottom: 10px; padding: 11px 14px; border: 1px solid #c9c0ff; border-radius: 11px; color: #5c47cc; background: var(--violet-soft); font-size: 11px; font-weight: 800; }
@@ -829,6 +861,7 @@ input:focus-visible {
   .app-toolbar-row { padding-right: 20px; padding-left: 20px; }
   .app-main { padding-right: 20px; padding-left: 20px; }
   .inbox-layout { grid-template-columns: 1fr; }
+  .workflow-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .job-detail-shell { position: relative; top: auto; min-height: auto; }
   .detail-empty { min-height: 240px; }
   .studio-grid { grid-template-columns: 1fr; }
@@ -847,6 +880,8 @@ input:focus-visible {
   .intro-metrics { margin-top: 25px; }
   .intro-metrics div { min-width: 0; flex: 1; padding: 10px; }
   .inbox-card { padding: 17px; }
+  .workflow-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .workflow-strip span { min-height: 44px; padding: 7px 8px; font-size: 10px; }
   .section-heading { display: block; }
   .section-heading .button { margin-top: 16px; }
   .studio-legend { margin-top: 16px; }
